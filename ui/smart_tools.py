@@ -3,19 +3,17 @@
 Smart Tools – Smart Collections & Advanced Bulk Operations.
 """
 
+import json
 import logging
 import re
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QSplitter,
     QListWidget, QListWidgetItem, QPushButton, QLabel, QLineEdit,
     QComboBox, QTableWidget, QTableWidgetItem, QMessageBox,
-    QProgressBar, QFileDialog, QCheckBox, QGroupBox, QFormLayout,
-    QTextEdit, QScrollArea
+    QProgressBar, QGroupBox, QFormLayout
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QThreadPool, QRunnable, QObject, QMetaObject
-from PyQt5.QtGui import QFont
+from PyQt5.QtCore import Qt, pyqtSignal, QThreadPool, QRunnable, QObject
 from pathlib import Path
-from collections import Counter
 
 from core.smart_collection import SmartCollection, CollectionManager, Condition
 from core.advanced_bulk import AdvancedBulkOperations
@@ -88,8 +86,10 @@ class BulkWorker(QRunnable):
         self.operation = operation
         self.params = params
         self.signals = BulkWorkerSignals()
+        self._changes = []  # (img_path, txt_path, new_tags_str)
 
     def run(self):
+        """Compute all tag changes and emit preview. Does NOT write files."""
         try:
             modified_count = 0
             preview_items = []
@@ -133,18 +133,27 @@ class BulkWorker(QRunnable):
                     tags = AdvancedBulkOperations.apply_normalize(tags)
                 if tags != original:
                     modified_count += 1
-                    if i < 10:  # preview first 10
-                        preview_items.append((str(img_path), ", ".join(original), ", ".join(tags)))
-                    try:
-                        with open(txt_path, 'w', encoding='utf-8') as f:
-                            f.write(", ".join(tags))
-                    except:
-                        pass
+                    new_tags_str = ", ".join(tags)
+                    self._changes.append((img_path, txt_path, new_tags_str))
+                    if len(preview_items) < 10:
+                        preview_items.append((str(img_path), ", ".join(original), new_tags_str))
                 self.signals.progress.emit(i+1, total)
             self.signals.preview.emit(preview_items)
             self.signals.finished.emit({'modified_count': modified_count, 'total': total})
         except Exception as e:
             self.signals.error.emit(str(e))
+
+    def apply(self):
+        """Write all previously computed changes to disk."""
+        written = 0
+        for img_path, txt_path, new_tags_str in self._changes:
+            try:
+                with open(txt_path, 'w', encoding='utf-8') as f:
+                    f.write(new_tags_str)
+                written += 1
+            except:
+                pass
+        return written
 
 
 class SmartTools(QWidget):
@@ -157,6 +166,7 @@ class SmartTools(QWidget):
         self.collection_manager = CollectionManager(Path(__file__).parent.parent / "smart_collections.json")
         self.current_collection = None
         self.filtered_paths = None
+        self._pending_worker = None
         self.setup_ui()
         self.refresh_collections_list()
 
@@ -272,9 +282,15 @@ class SmartTools(QWidget):
         self.progress_bar.setVisible(False)
         progress_row.addWidget(self.progress_bar)
 
-        self.run_btn = QPushButton("▶️ Run")
+        self.run_btn = QPushButton("▶️ Preview")
         self.run_btn.clicked.connect(self._run_bulk)
         progress_row.addWidget(self.run_btn)
+
+        self.apply_btn = QPushButton("💾 Apply Changes")
+        self.apply_btn.clicked.connect(self._apply_bulk)
+        self.apply_btn.setEnabled(False)
+        self.apply_btn.setVisible(False)
+        progress_row.addWidget(self.apply_btn)
 
         layout.addLayout(progress_row)
 
@@ -544,16 +560,15 @@ class SmartTools(QWidget):
             QMessageBox.warning(self, "Error", str(e))
             return
 
-        reply = QMessageBox.question(self, "Confirm", f"Apply '{op}' to all images in the current folder?\nThis action cannot be undone easily.", QMessageBox.Yes | QMessageBox.No)
-        if reply != QMessageBox.Yes:
-            return
-
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         self.run_btn.setEnabled(False)
-        self.status_label.setText("Running...")
+        self.apply_btn.setVisible(False)
+        self.apply_btn.setEnabled(False)
+        self.status_label.setText("Previewing...")
 
-        worker = BulkWorker(self.image_paths, op, params)
+        self._pending_worker = BulkWorker(self.image_paths, op, params)
+        worker = self._pending_worker
         worker.signals.progress.connect(self._on_bulk_progress)
         worker.signals.preview.connect(self._on_bulk_preview)
         worker.signals.finished.connect(self._on_bulk_finished)
@@ -574,19 +589,42 @@ class SmartTools(QWidget):
     def _on_bulk_finished(self, stats):
         self.progress_bar.setVisible(False)
         self.run_btn.setEnabled(True)
-        self.status_label.setText(f"Done. Modified {stats['modified_count']} out of {stats['total']} images.")
-        QMessageBox.information(self, "Complete", f"Modified {stats['modified_count']} images.")
+        if stats['modified_count'] > 0:
+            self.apply_btn.setVisible(True)
+            self.apply_btn.setEnabled(True)
+            self.status_label.setText(f"Preview done. {stats['modified_count']} files would be modified. Click 'Apply Changes' to commit.")
+        else:
+            self.status_label.setText("No files would be modified.")
 
     def _on_bulk_error(self, error):
         self.progress_bar.setVisible(False)
         self.run_btn.setEnabled(True)
+        self.apply_btn.setVisible(False)
+        self.apply_btn.setEnabled(False)
+        self._pending_worker = None
         self.status_label.setText(f"Error: {error}")
         QMessageBox.critical(self, "Error", error)
+
+    def _apply_bulk(self):
+        if not self._pending_worker:
+            return
+        reply = QMessageBox.question(self, "Confirm", "Apply all pending changes? This cannot be undone easily.", QMessageBox.Yes | QMessageBox.No)
+        if reply != QMessageBox.Yes:
+            return
+        written = self._pending_worker.apply()
+        self._pending_worker = None
+        self.apply_btn.setVisible(False)
+        self.apply_btn.setEnabled(False)
+        self.status_label.setText(f"Applied: {written} files modified.")
+        QMessageBox.information(self, "Complete", f"Applied changes to {written} files.")
 
     # --- External API ---
     def set_image_paths(self, paths):
         self.image_paths = paths
         self.filtered_paths = None
+        self._pending_worker = None
+        self.apply_btn.setVisible(False)
+        self.apply_btn.setEnabled(False)
         self.status_label.setText("Ready")
         self.preview_table.setRowCount(0)
         self.progress_bar.setVisible(False)

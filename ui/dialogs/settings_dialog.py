@@ -1,5 +1,4 @@
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QLineEdit, QDialogButtonBox, QLabel, QPushButton, QMessageBox, QTextEdit, QHBoxLayout
-from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QGuiApplication, QDesktopServices
 from PyQt5.QtCore import QUrl
 import cloudscraper

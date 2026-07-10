@@ -7,8 +7,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
     QTableWidgetItem, QPushButton, QMessageBox
 )
-from PyQt5.QtCore import Qt, QThreadPool, pyqtSignal, QObject, QRunnable
-from PyQt5.QtGui import QFont
+from PyQt5.QtCore import QThreadPool, pyqtSignal, QObject, QRunnable
 import logging
 from collections import Counter
 from pathlib import Path

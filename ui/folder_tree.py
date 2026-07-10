@@ -1,9 +1,8 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTreeView, QLabel, QFileSystemModel, QHeaderView, QMenu, QAction
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTreeView, QLabel, QFileSystemModel, QMenu, QAction
 from PyQt5.QtCore import Qt, QDir, pyqtSignal, QPoint
 from pathlib import Path
 import subprocess
 import sys
-import os
 
 class FolderTree(QWidget):
     file_selected = pyqtSignal(str)      # full path to selected image file
@@ -52,16 +51,14 @@ class FolderTree(QWidget):
             self._hide_columns()
 
     def _on_current_changed(self, current, previous):
-        """Fires on click AND keyboard up/down navigation — loads the image or folder."""
+        """Fires on click AND keyboard up/down navigation — loads the image file."""
         if self._suppress_current_changed or not current.isValid():
             return
         path = self.model.filePath(current)
         p = Path(path)
         if p.is_file():
             self.file_selected.emit(path)
-        elif p.is_dir():
-            # Now a single click on a folder loads it (same as double-click)
-            self.folder_selected.emit(path)
+        # Folders are loaded on double-click only, so single-click allows expand/collapse
 
     def select_path(self, path):
         """Programmatically highlight/scroll to a path without re-emitting signals."""
@@ -76,9 +73,7 @@ class FolderTree(QWidget):
         self.tree.scrollTo(index)
 
     def _on_double_clicked(self, index):
-        # Double‑click still expands/collapses folders (default behaviour).
-        # We also emit folder_selected, but since single‑click already does,
-        # this is redundant but harmless.
+        # Double‑click on a folder expands/collapses it AND loads it in the filmstrip
         file_path = self.model.filePath(index)
         if Path(file_path).is_dir():
             self.folder_selected.emit(file_path)

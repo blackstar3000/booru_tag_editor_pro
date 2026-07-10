@@ -1,11 +1,13 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QLabel,
-    QLineEdit, QPushButton, QMenu, QAction, QMessageBox, QCompleter
+    QLineEdit, QPushButton, QMenu, QAction, QMessageBox
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QStringListModel
+from PyQt5.QtCore import Qt, pyqtSignal, QRect
 from core.tag_manager import TagManager
 from core.danbooru_client import DanbooruClient
+from core.danbooru_tag_db import DanbooruTagDB
 from ui.tag_inspector import TagInspector
+from ui.tag_autocomplete import TagAutocompletePopup, TagEntry
 import logging
 
 logger = logging.getLogger(__name__)
@@ -29,19 +31,25 @@ class TagListWidget(QListWidget):
 class TagPanel(QWidget):
     tags_changed = pyqtSignal(list)
 
-    def __init__(self, tag_manager: TagManager, danbooru_client: DanbooruClient = None, parent=None):
+    def __init__(self, tag_manager: TagManager, danbooru_client: DanbooruClient = None, tag_db: DanbooruTagDB = None, parent=None):
         super().__init__(parent)
         self.tag_manager = tag_manager
         self.danbooru_client = danbooru_client
+        self.tag_db = tag_db
         self.all_tags = []
         self.filter_text = ""
         self.inspector = None
+        self._current_inspected_tag = None
         self.setup_ui()
         self.tag_manager.tags_changed.connect(self._on_tags_changed)
         if self.danbooru_client:
             self.danbooru_client.autocomplete_results.connect(self._on_autocomplete_results)
+            self.danbooru_client.autocomplete_error.connect(lambda q, e: logger.warning(f"Autocomplete error for '{q}': {e}"))
             self.danbooru_client.tag_info_fetched.connect(self._on_tag_info_fetched)
             self.danbooru_client.tag_info_error.connect(self._on_tag_info_error)
+            self.danbooru_client.wiki_fetched.connect(self._on_wiki_fetched)
+            self.danbooru_client.example_posts_fetched.connect(self._on_example_posts_fetched)
+            self.danbooru_client.preview_loaded.connect(self._on_preview_loaded)
             self.danbooru_client.credentials_missing.connect(self._on_credentials_missing)
             self.setup_autocomplete()
 
@@ -77,22 +85,62 @@ class TagPanel(QWidget):
         layout.addWidget(self.tag_list)
 
     def setup_autocomplete(self):
-        self.completer = QCompleter()
-        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
-        self.completer.setFilterMode(Qt.MatchContains)
-        self.model = QStringListModel()
-        self.completer.setModel(self.model)
-        self.add_input.setCompleter(self.completer)
+        self._autocomplete_popup = TagAutocompletePopup(self)
+        self._autocomplete_popup.install_on(self.add_input)
+        self._autocomplete_popup.tag_selected.connect(self._on_tag_selected)
         self.add_input.textChanged.connect(self._on_text_changed_for_autocomplete)
+        self._last_api_query = ""
+
+    def _on_tag_selected(self, tag):
+        self.add_input.setText(tag)
+        self._add_tag()
 
     def _on_text_changed_for_autocomplete(self, text):
-        if len(text) >= 2 and self.danbooru_client:
+        if len(text) < 1:
+            self._autocomplete_popup.hide()
+            self._last_api_query = ""
+            return
+        results = self.tag_db.search(text) if self.tag_db and self.tag_db.is_loaded else []
+        api_rect = QRect(self.add_input.mapToGlobal(
+            self.add_input.geometry().topLeft()),
+            self.add_input.size()
+        )
+        api_rect.setTop(api_rect.bottom())
+        api_rect.setHeight(0)
+        if results:
+            self._autocomplete_popup.show_suggestions(
+                [TagEntry(r['name'], r['category'], r['post_count'], source='db') for r in results],
+                api_rect
+            )
+        else:
+            self._autocomplete_popup.hide()
+        if self.danbooru_client:
+            self._last_api_query = text
             self.danbooru_client.autocomplete(text)
 
     def _on_autocomplete_results(self, query, tags):
-        if self.add_input.text().startswith(query):
-            self.model.setStringList(tags)
-            self.completer.complete()
+        if not self.add_input.text().startswith(query):
+            return
+        if not tags:
+            return
+        db_results = self.tag_db.search(self.add_input.text()) if self.tag_db and self.tag_db.is_loaded else []
+        seen = {r['name'] for r in db_results}
+        merged = [TagEntry(r['name'], r['category'], r['post_count'], source='db') for r in db_results]
+        for t in tags:
+            name = t['name'] if isinstance(t, dict) else t
+            if name not in seen:
+                if isinstance(t, dict):
+                    merged.append(TagEntry(t['name'], t.get('category', 0), t.get('post_count', 0)))
+                else:
+                    merged.append(TagEntry(t))
+                seen.add(name)
+        api_rect = QRect(self.add_input.mapToGlobal(
+            self.add_input.geometry().topLeft()),
+            self.add_input.size()
+        )
+        api_rect.setTop(api_rect.bottom())
+        api_rect.setHeight(0)
+        self._autocomplete_popup.show_suggestions(merged, api_rect)
 
     def _on_item_double_click(self, item):
         tag = item.text()
@@ -102,21 +150,49 @@ class TagPanel(QWidget):
     def show_tag_inspector(self, tag):
         """Show the tag inspector as a separate popup window."""
         if not self.inspector:
-            # Create without a parent to ensure it's a separate window
             self.inspector = TagInspector()
         self.inspector.clear()
         self.inspector.show()
         self.inspector.raise_()
+        self._current_inspected_tag = tag
         if self.danbooru_client:
             self.danbooru_client.fetch_tag_info(tag)
+            self.danbooru_client.fetch_wiki(tag)
+            self.danbooru_client.fetch_example_posts(tag)
 
     def _on_tag_info_fetched(self, tag, info):
+        if tag != self._current_inspected_tag:
+            return
         if self.inspector and self.inspector.isVisible():
             self.inspector.display_tag_info(tag, info)
 
     def _on_tag_info_error(self, tag, error):
+        if tag != self._current_inspected_tag:
+            return
         if self.inspector and self.inspector.isVisible():
             self.inspector.display_tag_info(tag, {"error": error})
+
+    def _on_wiki_fetched(self, tag, body):
+        if tag != self._current_inspected_tag:
+            return
+        if self.inspector and self.inspector.isVisible():
+            self.inspector.display_wiki(tag, body)
+
+    def _on_example_posts_fetched(self, tag, posts):
+        if tag != self._current_inspected_tag:
+            return
+        if self.inspector and self.inspector.isVisible():
+            self.inspector.display_example_posts(tag, posts)
+            for i, post in enumerate(posts):
+                url = post.get('preview_url')
+                if url:
+                    self.danbooru_client.fetch_preview_image(tag, i, url)
+
+    def _on_preview_loaded(self, tag, index, pixmap):
+        if tag != self._current_inspected_tag:
+            return
+        if self.inspector and self.inspector.isVisible():
+            self.inspector.set_preview_image(tag, index, pixmap)
 
     def _on_credentials_missing(self):
         reply = QMessageBox.question(

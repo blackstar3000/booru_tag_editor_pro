@@ -1,11 +1,13 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QMenu, QAction
+from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from PyQt5.QtGui import QPixmap, QResizeEvent
 import logging
 
 logger = logging.getLogger(__name__)
 
 class ImageViewer(QWidget):
+    context_menu_requested = pyqtSignal(object)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._original_pixmap = None
@@ -16,6 +18,8 @@ class ImageViewer(QWidget):
         self.label.setStyleSheet("background: rgba(0,0,0,0.3); border-radius: 10px;")
         self.label.setMinimumHeight(400)
         self.label.setText("No image loaded")
+        self.label.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.label.customContextMenuRequested.connect(lambda pt: self.context_menu_requested.emit(pt))
         self.layout.addWidget(self.label)
 
     def set_pixmap(self, pixmap: QPixmap):

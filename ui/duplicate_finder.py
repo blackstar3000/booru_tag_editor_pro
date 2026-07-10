@@ -6,8 +6,8 @@ Duplicate Finder – displays groups of duplicate images.
 import logging
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QListWidget, QListWidgetItem, QMessageBox, QProgressBar,
-    QGridLayout, QScrollArea, QFrame, QFileDialog, QCheckBox
+    QMessageBox, QProgressBar,
+    QGridLayout, QScrollArea, QFrame
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QRunnable, QThreadPool
 from PyQt5.QtGui import QPixmap, QIcon

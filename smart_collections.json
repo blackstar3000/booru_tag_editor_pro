@@ -14,5 +14,16 @@
       }
     ],
     "logic": "AND"
+  },
+  {
+    "name": "1girl",
+    "conditions": [
+      {
+        "type": "tag_contains",
+        "value": "1girl",
+        "operator": "=="
+      }
+    ],
+    "logic": "AND"
   }
 ]

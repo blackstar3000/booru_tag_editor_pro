@@ -5,10 +5,10 @@ Filmstrip – horizontal thumbnail strip for rapid image navigation.
 
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QScrollArea, QListWidget, QListWidgetItem,
-    QListView, QLabel, QFrame
+    QListView, QFrame
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QSize
-from PyQt5.QtGui import QPixmap, QIcon, QFont
+from PyQt5.QtGui import QPixmap, QIcon
 from pathlib import Path
 import logging
 

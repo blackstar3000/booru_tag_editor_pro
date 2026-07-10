@@ -1,130 +1,108 @@
 {
-  "Characters": [
-    "1girl",
-    "2girls",
-    "3girls",
-    "4girls",
-    "5girls",
-    "6+girls",
-    "1boy",
-    "2boys",
-    "3boys",
-    "4boys",
-    "5boys",
-    "6+boys",
-    "solo",
-    "solo_focus",
-    "multiple girls and boys",
-    "1girl + solo",
-    "1boy + solo"
-  ],
-  "Clothing": [
-    "school uniform",
-    "casual",
-    "formal",
-    "kimono",
-    "yukata",
-    "swimsuit",
-    "bikini",
-    "one-piece",
-    "dress",
-    "skirt",
-    "pants",
-    "jacket",
-    "coat",
-    "cape",
-    "hoodie",
-    "sweater",
-    "shirt",
-    "t-shirt",
-    "blouse",
-    "vest",
-    "tie",
-    "bowtie",
-    "accessories"
-  ],
-  "Pose": [
-    "standing",
-    "sitting",
-    "lying",
-    "kneeling",
-    "crouching",
-    "running",
-    "jumping",
-    "flying",
-    "dancing",
-    "fighting",
-    "hands_up",
-    "arms_crossed",
-    "hands_on_hips",
-    "hand_on_face",
-    "looking_at_viewer",
-    "looking_back",
-    "profile"
-  ],
-  "Camera": [
-    "low angle",
-    "high angle",
-    "dutch angle",
-    "eye level",
-    "front view",
-    "side view",
-    "back view",
-    "over shoulder",
-    "close-up",
-    "medium shot",
-    "full body",
-    "cowboy shot"
-  ],
-  "Lighting": [
-    "natural lighting",
-    "studio lighting",
-    "backlighting",
-    "rim lighting",
-    "soft lighting",
-    "hard lighting",
-    "dramatic lighting",
-    "volumetric lighting",
-    "golden hour",
-    "night",
-    "sunlight"
-  ],
-  "Quality": [
-    "masterpiece",
-    "best quality",
-    "highres",
-    "ultra detailed",
-    "8k",
-    "photorealistic",
-    "intricate details",
-    "sharp focus"
-  ],
-  "Style": [
-    "anime",
-    "realistic",
-    "photorealistic",
-    "digital art",
-    "oil painting",
-    "watercolor",
-    "sketch",
-    "ink",
-    "3d render",
-    "cartoon",
-    "comic",
-    "vintage",
-    "cyberpunk",
-    "steampunk"
-  ],
-  "Background": [
-    "cityscape",
-    "nature",
-    "forest",
-    "beach",
-    "mountains",
-    "space",
-    "abstract",
-    "solid color",
-    "gradient",
-    "pattern"
+  "categories": {
+    "Quality": [
+      "masterpiece",
+      "best quality",
+      "amazing quality",
+      "very aesthetic",
+      "absurdres"
+    ],
+    "Character": [
+      "1girl",
+      "large breasts",
+      "manjuu (azur lane)",
+      "solo focus",
+      "solo",
+      "taihou \\(azur lane\\)"
+    ],
+    "Copyright": [],
+    "Artist": [
+      "artist:shexyo",
+      "(artist:neoartcore:0.8)",
+      "artist:cutesexyrobutts",
+      "artist:quasarcake"
+    ],
+    "Style": [],
+    "Appearance": [
+      "red eyes",
+      "black hair",
+      "crossed bangs",
+      "long hair",
+      "bangs",
+      "ahoge",
+      "very long hair",
+      "official alternate costume",
+      "cleavage",
+      "breasts",
+      "collarbone",
+      "huge breasts",
+      "long sleeves",
+      "hair between eyes"
+    ],
+    "Expression": [
+      "looking at viewer",
+      "blush",
+      "smile",
+      "open mouth"
+    ],
+    "Clothing": [
+      "choker",
+      "ring",
+      "black choker",
+      "black shirt",
+      "shirt",
+      "bowl",
+      "wedding ring",
+      "necklace"
+    ],
+    "Accessories": [
+      "jewelry",
+      "food",
+      "incoming food",
+      "cup",
+      "chopsticks"
+    ],
+    "Pose": [
+      "holding",
+      "holding chopsticks"
+    ],
+    "Camera": [
+      "pov",
+      "pov across table",
+      "upper body"
+    ],
+    "Lighting": [],
+    "Environment": [
+      "indoors",
+      "table"
+    ],
+    "Effects": [
+      "restaurant"
+    ],
+    "Meta": [],
+    "Uncategorized": [
+      "breast rest",
+      "one side up",
+      "feeding",
+      "breasts on table"
+    ]
+  },
+  "order": [
+    "Quality",
+    "Character",
+    "Copyright",
+    "Artist",
+    "Style",
+    "Appearance",
+    "Expression",
+    "Clothing",
+    "Accessories",
+    "Pose",
+    "Camera",
+    "Lighting",
+    "Environment",
+    "Effects",
+    "Meta",
+    "Uncategorized"
   ]
 }

@@ -1,10 +1,12 @@
 import json
+import sys
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QToolBar, QAction,
     QSplitter, QTabWidget, QStatusBar, QMessageBox, QFileDialog, QApplication,
-    QLabel, QTextEdit, QPushButton, QCheckBox, QComboBox
+    QLabel, QTextEdit, QPushButton, QCheckBox, QComboBox, QMenu,
+    QInputDialog
 )
-from PyQt5.QtCore import Qt, QThreadPool, QUrl
+from PyQt5.QtCore import Qt, QThreadPool
 from PyQt5.QtGui import QIcon, QKeySequence, QGuiApplication
 
 from core.image_loader import ImageLoader
@@ -12,7 +14,7 @@ from core.metadata_reader import MetadataReader
 from core.settings_manager import SettingsManager
 from core.tag_manager import TagManager
 from core.danbooru_client import DanbooruClient
-from core.ai_metadata_reader import AIMetadataReader
+from core.danbooru_tag_db import DanbooruTagDB
 from core.navigation_controller import NavigationController
 from workers.folder_scan_worker import FolderScanWorker
 from workers.metadata_worker import MetadataWorker
@@ -28,6 +30,7 @@ from ui.dataset_audit import DatasetAudit
 from ui.smart_tools import SmartTools
 from ui.dialogs.settings_dialog import SettingsDialog
 from ui.dialogs.batch_dialog import BatchDialog
+from ui.text_editor import TextEditor
 
 import logging
 from pathlib import Path
@@ -40,6 +43,10 @@ class MainWindow(QMainWindow):
         self.settings = settings
         self.danbooru_client = danbooru_client
         self.setWindowTitle("🧊 Booru Tag Editor Pro++")
+        self.text_editor = None  # keep reference
+
+        self.tag_db = DanbooruTagDB()
+        self.tag_db.load()
 
         self.threadpool = QThreadPool()
         logger.info(f"Thread pool max threads: {self.threadpool.maxThreadCount()}")
@@ -50,7 +57,6 @@ class MainWindow(QMainWindow):
         self.nav = NavigationController()
 
         self.metadata_cache = {}   # path -> metadata dict
-        self.ai_metadata_cache = {} # path -> AI metadata dict
         self.current_ai_metadata = None
         self.show_raw_metadata = False
         self.current_folder = None
@@ -69,11 +75,35 @@ class MainWindow(QMainWindow):
         self.tag_manager.tags_changed.connect(self._on_tags_changed)
         self.tag_manager.dirty_changed.connect(self.update_status)
 
+        # Auto-load last folder
+        folders = self.settings.recent_folders
+        if folders:
+            last = folders[0]
+            if Path(last).exists():
+                self.folder_tree.set_root_path(last)
+                self.nav.load_folder(last)
+
     def setup_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
         layout.setContentsMargins(0, 0, 0, 0)
+
+        # File menu
+        menubar = self.menuBar()
+        file_menu = menubar.addMenu("File")
+        open_folder_action = QAction("📂 Open Folder...", self)
+        open_folder_action.triggered.connect(self.open_folder)
+        open_folder_action.setShortcut(QKeySequence("Ctrl+O"))
+        file_menu.addAction(open_folder_action)
+
+        self.recent_menu = file_menu.addMenu("📁 Recent Folders")
+        self.recent_menu.aboutToShow.connect(self._populate_recent_menu)
+
+        file_menu.addSeparator()
+        exit_action = QAction("Exit", self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
 
         # Toolbar
         toolbar = self.addToolBar("Main")
@@ -143,6 +173,11 @@ class MainWindow(QMainWindow):
         settings_action.triggered.connect(self.open_settings)
         toolbar.addAction(settings_action)
 
+        # Add Text Editor button
+        text_editor_action = QAction("📝 Text Editor", self)
+        text_editor_action.triggered.connect(self.open_text_editor)
+        toolbar.addAction(text_editor_action)
+
         # Main splitter: left side (image viewer + folder tree) | right side (tabs)
         main_splitter = QSplitter(Qt.Horizontal)
 
@@ -153,6 +188,7 @@ class MainWindow(QMainWindow):
 
         left_splitter = QSplitter(Qt.Vertical)
         self.image_viewer = ImageViewer()
+        self.image_viewer.context_menu_requested.connect(self._show_image_context_menu)
         left_splitter.addWidget(self.image_viewer)
 
         self.folder_tree = FolderTree()
@@ -168,7 +204,7 @@ class MainWindow(QMainWindow):
         right_panel = QTabWidget()
 
         # Tags tab
-        self.tag_panel = TagPanel(self.tag_manager, self.danbooru_client)
+        self.tag_panel = TagPanel(self.tag_manager, self.danbooru_client, tag_db=self.tag_db)
         right_panel.addTab(self.tag_panel, "🏷️ Tags")
 
         # EXIF Metadata tab
@@ -207,9 +243,10 @@ class MainWindow(QMainWindow):
         right_panel.addTab(ai_metadata_widget, "🧠 AI Metadata")
 
         # Prompt Builder tab
-        self.prompt_builder = PromptBuilder(self.danbooru_client)
+        self.prompt_builder = PromptBuilder(self.danbooru_client, tag_db=self.tag_db)
         self.prompt_builder.prompt_changed.connect(self._on_prompt_builder_apply)
         self.prompt_builder.seed_requested.connect(self._on_seed_requested)
+        self.prompt_builder.grouping_completed.connect(self._on_grouping_completed)
         right_panel.addTab(self.prompt_builder, "📝 Prompt Builder")
 
         # Statistics Dashboard tab
@@ -248,6 +285,31 @@ class MainWindow(QMainWindow):
         self.update_status()
         self._update_up_button_state()
 
+    def _populate_recent_menu(self):
+        self.recent_menu.clear()
+        folders = self.settings.recent_folders
+        if not folders:
+            empty = self.recent_menu.addAction("(no recent folders)")
+            empty.setEnabled(False)
+            return
+        for folder in folders:
+            name = Path(folder).name or folder
+            act = self.recent_menu.addAction(f"{name}  ({folder})")
+            act.setData(folder)
+        self.recent_menu.addSeparator()
+        clear_act = self.recent_menu.addAction("Clear Recent Folders")
+        clear_act.triggered.connect(self._clear_recent_folders)
+        self.recent_menu.triggered.connect(self._on_recent_folder_clicked)
+
+    def _on_recent_folder_clicked(self, action):
+        folder = action.data()
+        if folder:
+            self.folder_tree.set_root_path(folder)
+            self.nav.load_folder(folder)
+
+    def _clear_recent_folders(self):
+        self.settings.recent_folders = []
+
     def _update_up_button_state(self):
         """Enable/disable the Up button based on whether we can go up."""
         if not self.nav.current_folder:
@@ -264,6 +326,7 @@ class MainWindow(QMainWindow):
         # Set the tree root to the loaded folder so that the tree shows only this folder's contents
         self.folder_tree.set_root_path(folder_path)
         self.folder_tree.select_path(folder_path)
+        self.settings.add_recent_folder(folder_path)
         self._update_up_button_state()
 
     def _on_image_list_changed(self, paths):
@@ -325,6 +388,122 @@ class MainWindow(QMainWindow):
             return  # already at root
         self.folder_tree.set_root_path(str(parent))
         self.nav.load_folder(str(parent))
+
+    # --- Image context menu ---
+
+    def _show_image_context_menu(self, pos):
+        if not self.nav.image_paths or self.nav.current_index < 0:
+            return
+        path = self.nav.image_paths[self.nav.current_index]
+        menu = QMenu()
+        open_act = menu.addAction("🖼️ Open")
+        open_act.triggered.connect(lambda: self._open_file_external(path))
+        reveal_act = menu.addAction("📁 Reveal in Explorer")
+        reveal_act.triggered.connect(lambda: self._reveal_in_explorer(path))
+        copy_act = menu.addAction("📋 Copy Path")
+        copy_act.triggered.connect(lambda: self._copy_path(path))
+        rename_act = menu.addAction("✏️ Rename")
+        rename_act.triggered.connect(lambda: self._rename_file(path))
+        menu.addSeparator()
+        delete_act = menu.addAction("🗑️ Delete")
+        delete_act.triggered.connect(self._delete_current_image)
+        menu.exec_(self.image_viewer.label.mapToGlobal(pos))
+
+    def _open_file_external(self, path):
+        import subprocess
+        subprocess.Popen(['explorer', str(path)]) if sys.platform == 'win32' else subprocess.Popen(['open', str(path)])
+
+    def _reveal_in_explorer(self, path):
+        import subprocess
+        native = str(path)
+        if sys.platform == 'win32':
+            subprocess.Popen(['explorer', f'/select,{native}'])
+        elif sys.platform == 'darwin':
+            subprocess.Popen(['open', '-R', native])
+        else:
+            subprocess.Popen(['xdg-open', str(Path(native).parent)])
+
+    def _copy_path(self, path):
+        clipboard = QApplication.clipboard()
+        clipboard.setText(str(path))
+        self.status_label.setText(f"📋 Copied: {path.name}")
+
+    def _rename_file(self, path):
+        from PyQt5.QtWidgets import QInputDialog
+        new_name, ok = QInputDialog.getText(self, "Rename", "New name:", text=path.stem)
+        if ok and new_name:
+            new_path = path.parent / f"{new_name}{path.suffix}"
+            try:
+                path.rename(new_path)
+                self.nav.refresh()
+                self.status_label.setText(f"✏️ Renamed to {new_path.name}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Could not rename:\n{e}")
+
+    def _show_delete_confirmation(self, path):
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Delete File")
+        msg.setText(f"Are you sure you want to delete this image?\n\nFilename:\n{path.name}\n\nThis action cannot be undone.")
+        msg.setIcon(QMessageBox.Warning)
+        delete_btn = msg.addButton("Delete", QMessageBox.ActionRole)
+        delete_btn.setStyleSheet("color: #ff4444; font-weight: bold;")
+        msg.addButton(QMessageBox.Cancel)
+        dont_ask = msg.addButton("Don't ask again", QMessageBox.ActionRole)
+        msg.exec_()
+        clicked = msg.clickedButton()
+        if clicked == dont_ask:
+            self.settings.confirm_delete = False
+            return True
+        return clicked == delete_btn
+
+    def _delete_current_image(self):
+        if not self.nav.image_paths or self.nav.current_index < 0:
+            return
+        idx = self.nav.current_index
+        path = self.nav.image_paths[idx]
+
+        if not path.exists():
+            self.status_label.setText(f"⚠️ File not found: {path.name}")
+            return
+
+        if not path.is_file():
+            self.status_label.setText(f"⚠️ Not a file: {path.name}")
+            return
+
+        if self.settings.confirm_delete:
+            if not self._show_delete_confirmation(path):
+                return
+
+        txt_path = path.with_suffix(".txt")
+        try:
+            path.unlink()
+            if txt_path.exists():
+                txt_path.unlink()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Unable to delete \"{path.name}\".\n\nThe file may be in use or you may not have permission.")
+            return
+
+        self.image_loader.cache._cache.pop(path, None)
+        self.metadata_cache.pop(path, None)
+
+        new_paths = [p for p in self.nav.image_paths if p != path]
+        self.nav.image_paths = new_paths
+        self.nav.image_list_changed.emit(new_paths)
+        self.filmstrip.set_images(new_paths)
+
+        if not new_paths:
+            self.nav.current_index = -1
+            self.image_viewer.clear()
+            self.tag_manager.load_tags([])
+            self.metadata_panel.clear()
+            self.ai_metadata_panel.clear()
+            self.status_label.setText(f"🗑️ Deleted \"{path.name}\" — folder is empty")
+        else:
+            new_idx = min(idx, len(new_paths) - 1)
+            self.nav.set_current_index(new_idx)
+            self.status_label.setText(f"🗑️ Deleted \"{path.name}\"")
+        self.update_status()
+        self.update_navigation_buttons()
 
     # --- Image loading ---
 
@@ -438,20 +617,21 @@ class MainWindow(QMainWindow):
         else:
             self.status_label.setText("All tags already in list.")
 
+    def _on_grouping_completed(self, summary):
+        self.status_label.setText(f"✅ {summary}")
+
     def _on_seed_requested(self):
         tags = self.tag_manager.tags
         if not tags:
             self.status_label.setText("No tags to seed.")
             return
-        imported = self.prompt_builder.seed_from_tags(tags)
-        self.status_label.setText(f"✅ Imported {imported} tags from image")
+        self.prompt_builder.seed_from_tags(tags)
 
     def _on_smart_collection_applied(self, filtered_paths):
         if filtered_paths is None:
             # Reset to full folder
             self.nav.image_paths = self.nav._full_image_paths if hasattr(self.nav, '_full_image_paths') else []
             self.nav._full_image_paths = None
-            self.nav.set_current_index(0)
             self.filmstrip.set_images(self.nav.image_paths)
             if self.nav.image_paths:
                 self.nav.set_current_index(0)
@@ -460,7 +640,6 @@ class MainWindow(QMainWindow):
             # Apply filtered list
             self.nav._full_image_paths = self.nav.image_paths
             self.nav.image_paths = filtered_paths
-            self.nav.set_current_index(0)
             self.filmstrip.set_images(filtered_paths)
             if filtered_paths:
                 self.nav.set_current_index(0)
@@ -482,6 +661,11 @@ class MainWindow(QMainWindow):
         self.nav.navigate(delta)
 
     def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Delete:
+            focus = QApplication.focusWidget()
+            if focus and not focus.metaObject().className() in ('QLineEdit', 'QTextEdit', 'QListWidget'):
+                self._delete_current_image()
+                return
         if event.key() == Qt.Key_Left:
             self.navigate(-1)
             return
@@ -491,7 +675,7 @@ class MainWindow(QMainWindow):
         super().keyPressEvent(event)
 
     def save_current_tags(self):
-        if self.nav.current_index < 0 or self.nav.current_index >= len(self.nav.image_paths):
+        if not self.nav.image_paths or self.nav.current_index < 0 or self.nav.current_index >= len(self.nav.image_paths):
             return
         path = self.nav.image_paths[self.nav.current_index]
         txt_path = path.with_suffix(".txt")
@@ -627,3 +811,10 @@ class MainWindow(QMainWindow):
                 self.folder_tree.set_root_path(path)
                 self.nav.load_folder(path)
                 event.acceptProposedAction()
+
+    def open_text_editor(self):
+        """Open the text editor window (create if not exists)."""
+        if self.text_editor is None:
+            self.text_editor = TextEditor(danbooru_client=self.danbooru_client, tag_db=self.tag_db, parent=self)
+        self.text_editor.show()
+        self.text_editor.raise_()

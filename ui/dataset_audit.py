@@ -11,11 +11,9 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QRunnable, QThreadPool
 from pathlib import Path
-from collections import Counter, defaultdict
+from collections import Counter
 from PIL import Image
 import json
-
-from core.ai_metadata_reader import AIMetadataReader
 
 logger = logging.getLogger(__name__)
 
