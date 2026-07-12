@@ -150,6 +150,18 @@ Designed for workflows using **ComfyUI**, **Stable Diffusion**, **SDXL**, **Flux
 
 ![Prompt Builder](screenshots/prompt_builder.png)
 
+### Tag Editor
+
+![Tag Editor](screenshots/tag_editor.png)
+
+### Text Editor
+
+![Text Editorr](screenshots/text_editor.png)
+
+### AI Metadata Viewer
+
+![AI Metadata Viewer](screenshots/ai.png)
+
 ---
 
 ## Installation
