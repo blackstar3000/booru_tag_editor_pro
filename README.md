@@ -140,6 +140,18 @@ Designed for workflows using **ComfyUI**, **Stable Diffusion**, **SDXL**, **Flux
 
 ---
 
+## Screenshots
+
+### Main Editor
+
+![Main Editor](screenshots/main_editor.png.png)
+
+### Prompt Builder
+
+![Prompt Builder](screenshots/prompt_builder.png)
+
+---
+
 ## Installation
 
 ### Requirements
