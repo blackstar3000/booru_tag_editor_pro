@@ -9,14 +9,14 @@ from PyQt5.QtWidgets import (
     QTabWidget, QTextEdit, QFileDialog, QMessageBox, QSplitter,
     QTreeView, QFileSystemModel, QMenu, QInputDialog, QPushButton,
     QLineEdit, QLabel, QDialog, QDialogButtonBox,
-    QCheckBox
+    QCheckBox, QApplication
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QRect
+from PyQt5.QtCore import Qt, pyqtSignal, QRect, QPoint, QEvent
 from PyQt5.QtGui import QKeySequence, QFont, QTextCursor, QTextDocument
 
 from core.syntax_highlighter import SyntaxHighlighter
 from core.tag_highlighter import TagHighlighter
-from core.danbooru_client import DanbooruClient
+from core.booru_source_manager import BooruSourceManager
 from core.danbooru_tag_db import DanbooruTagDB
 from ui.tag_autocomplete import TagAutocompletePopup, TagEntry
 
@@ -49,10 +49,10 @@ class FindDialog(QDialog):
 
 
 class EditorTab(QTextEdit):
-    def __init__(self, file_path=None, danbooru_client=None, tag_db: DanbooruTagDB = None):
+    def __init__(self, file_path=None, source_manager=None, tag_db: DanbooruTagDB = None):
         super().__init__()
         self.file_path = file_path
-        self.danbooru_client = danbooru_client
+        self.source_manager = source_manager
         self.tag_db = tag_db
         self.syntax_highlighter = None
         self.tag_highlighter = None
@@ -118,7 +118,7 @@ class EditorTab(QTextEdit):
             file_type = suffix[1:]
             self.syntax_highlighter = SyntaxHighlighter(self.document(), file_type)
         elif suffix == '.txt':
-            if self.danbooru_client:
+            if self.source_manager:
                 self.tag_highlighter = TagHighlighter(self.document(), self._get_tag_category)
 
     def _get_tag_category(self, tag):
@@ -131,6 +131,11 @@ class EditorTab(QTextEdit):
         self._autocomplete_popup = TagAutocompletePopup(self)
         self._autocomplete_popup.tag_selected.connect(self._insert_suggestion)
         self.textChanged.connect(self._on_text_changed_for_autocomplete)
+        # Connect to source_manager signals immediately
+        if self.source_manager and not self._autocomplete_connected:
+            self.source_manager.autocomplete_results.connect(self._on_autocomplete_results)
+            self.source_manager.credentials_missing.connect(self._on_credentials_missing)
+            self._autocomplete_connected = True
 
     def _on_text_changed_for_autocomplete(self):
         cursor = self.textCursor()
@@ -140,29 +145,33 @@ class EditorTab(QTextEdit):
             db_results = self.tag_db.search(word) if self.tag_db and self.tag_db.is_loaded else []
             if db_results:
                 entries = [TagEntry(r['name'], r['category'], r['post_count'], source='db') for r in db_results]
-                rect = self.cursorRect(cursor)
-                anchor = QRect(self.mapToGlobal(rect.bottomLeft()), rect.size())
-                self._autocomplete_popup.show_suggestions(entries, anchor)
-            if self.danbooru_client:
-                if not self._autocomplete_connected:
-                    self.danbooru_client.autocomplete_results.connect(self._on_autocomplete_results)
-                    self.danbooru_client.credentials_missing.connect(self._on_credentials_missing)
-                    self._autocomplete_connected = True
-                self.danbooru_client.autocomplete(word)
+                self._show_popup(entries)
+            if self.source_manager:
+                self.source_manager.autocomplete(word)
         else:
             self._autocomplete_popup.hide()
+
+    def _show_popup(self, entries):
+        cursor = self.textCursor()
+        cursor.select(QTextCursor.WordUnderCursor)
+        rect = self.cursorRect(cursor)
+        global_pos = self.mapToGlobal(QPoint(0, rect.bottom()))
+        anchor = QRect(global_pos, self.size())
+        anchor.setWidth(self.viewport().width())
+        anchor.setHeight(0)
+        self._autocomplete_popup.show_suggestions(entries, anchor)
 
     def disconnect_autocomplete(self):
         """Detach this tab from the shared autocomplete signal. Call before
         the tab is closed/discarded so it stops receiving results it no
         longer needs."""
-        if self._autocomplete_connected and self.danbooru_client:
+        if self._autocomplete_connected and self.source_manager:
             try:
-                self.danbooru_client.autocomplete_results.disconnect(self._on_autocomplete_results)
+                self.source_manager.autocomplete_results.disconnect(self._on_autocomplete_results)
             except TypeError:
                 pass
             try:
-                self.danbooru_client.credentials_missing.disconnect(self._on_credentials_missing)
+                self.source_manager.credentials_missing.disconnect(self._on_credentials_missing)
             except TypeError:
                 pass
             self._autocomplete_connected = False
@@ -184,13 +193,11 @@ class EditorTab(QTextEdit):
 
     def _on_autocomplete_results(self, query, tags):
         if not tags:
-            self._autocomplete_popup.hide()
             return
         cursor = self.textCursor()
         cursor.select(QTextCursor.WordUnderCursor)
         word = cursor.selectedText()
-        if word != query:
-            self._autocomplete_popup.hide()
+        if len(word) < 1:
             return
 
         db_results = self.tag_db.search(word) if self.tag_db and self.tag_db.is_loaded else []
@@ -204,9 +211,8 @@ class EditorTab(QTextEdit):
                 else:
                     merged.append(TagEntry(t))
                 seen.add(name)
-        rect = self.cursorRect(cursor)
-        anchor = QRect(self.mapToGlobal(rect.bottomLeft()), rect.size())
-        self._autocomplete_popup.show_suggestions(merged, anchor)
+        if merged:
+            self._show_popup(merged)
 
     def _insert_suggestion(self, tag):
         cursor = self.textCursor()
@@ -227,9 +233,9 @@ class EditorTab(QTextEdit):
 
 
 class TextEditor(QMainWindow):
-    def __init__(self, danbooru_client=None, tag_db: DanbooruTagDB = None, parent=None):
+    def __init__(self, source_manager=None, tag_db: DanbooruTagDB = None, parent=None):
         super().__init__(parent)
-        self.danbooru_client = danbooru_client
+        self.source_manager = source_manager
         self.tag_db = tag_db
         self.setWindowTitle("📝 Quick Editor Pro")
         self.setGeometry(100, 100, 1200, 800)
@@ -238,6 +244,16 @@ class TextEditor(QMainWindow):
         self._create_central_widget()
         self._connect_signals()
         self._load_recent_files()
+        QApplication.instance().installEventFilter(self)
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.ToolTip:
+            w = obj
+            while w is not None:
+                if w is self:
+                    return True
+                w = w.parent()
+        return super().eventFilter(obj, event)
 
     def _create_menu_bar(self):
         menubar = self.menuBar()
@@ -427,7 +443,7 @@ class TextEditor(QMainWindow):
 
     # --- Actions ---
     def _new_file(self):
-        tab = EditorTab(danbooru_client=self.danbooru_client, tag_db=self.tag_db)
+        tab = EditorTab(source_manager=self.source_manager, tag_db=self.tag_db)
         idx = self.tab_widget.addTab(tab, "Untitled*")
         self.tab_widget.setCurrentIndex(idx)
 
@@ -443,7 +459,7 @@ class TextEditor(QMainWindow):
             if tab.file_path == path:
                 self.tab_widget.setCurrentIndex(i)
                 return
-        tab = EditorTab(path, danbooru_client=self.danbooru_client, tag_db=self.tag_db)
+        tab = EditorTab(path, source_manager=self.source_manager, tag_db=self.tag_db)
         idx = self.tab_widget.addTab(tab, path.name)
         self.tab_widget.setCurrentIndex(idx)
 
@@ -473,7 +489,6 @@ class TextEditor(QMainWindow):
                 if tab.save_file_as(Path(file_path)):
                     self.statusBar().showMessage(f"Saved as {Path(file_path).name}")
                     self._update_tab_title(tab)
-                    self._update_tab_tooltip(tab)
 
     def _save_all(self):
         for i in range(self.tab_widget.count()):
@@ -579,7 +594,6 @@ class TextEditor(QMainWindow):
         tab = self.tab_widget.widget(index)
         if tab:
             self._update_tab_title(tab)
-            self._update_tab_tooltip(tab)
 
     def _update_tab_title(self, tab):
         idx = self.tab_widget.indexOf(tab)
@@ -588,11 +602,6 @@ class TextEditor(QMainWindow):
             if tab.modified:
                 name += "●"
             self.tab_widget.setTabText(idx, name)
-
-    def _update_tab_tooltip(self, tab):
-        idx = self.tab_widget.indexOf(tab)
-        if idx >= 0 and tab.file_path:
-            self.tab_widget.setTabToolTip(idx, str(tab.file_path))
 
     def _on_explorer_clicked(self, index):
         path = self.model.filePath(index)
@@ -661,7 +670,6 @@ class TextEditor(QMainWindow):
                     if tab.file_path == path:
                         tab.file_path = new_path
                         self._update_tab_title(tab)
-                        self._update_tab_tooltip(tab)
                         break
 
     def _explorer_delete(self):
