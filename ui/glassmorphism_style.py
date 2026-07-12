@@ -370,14 +370,13 @@ QGroupBox::title {
     color: #aaa;
 }
 
-/* ── ToolTip ───────────────────────────────────────────────────── */
+/* ── ToolTip (suppressed in favor of custom tooltip system) ─────── */
 QToolTip {
-    background: rgba(24, 26, 36, 0.95);
-    color: #ddd;
-    border: 1px solid rgba(139, 92, 246, 0.3);
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 12px;
+    background: transparent;
+    color: transparent;
+    border: none;
+    padding: 0;
+    font-size: 0;
 }
 
 /* ── Dialog ────────────────────────────────────────────────────── */
