@@ -5,10 +5,11 @@ ComfyUI-Autocomplete-Plus style inline popup.
 
 import ctypes
 import platform
+from ctypes import wintypes
 
 from PyQt5.QtWidgets import (
     QListView, QStyledItemDelegate, QStyleOptionViewItem,
-    QAbstractItemView, QApplication, QStyle
+    QAbstractItemView, QApplication, QStyle, QGraphicsDropShadowEffect
 )
 from PyQt5.QtCore import Qt, QModelIndex, QAbstractListModel, QSize, pyqtSignal, QObject, QEvent
 from PyQt5.QtGui import QColor, QPainter, QFont, QPen, QBrush
@@ -18,43 +19,73 @@ logger = logging.getLogger(__name__)
 
 
 def _enable_window_blur(hwnd):
-    """Apply acrylic blur/backdrop behind the window on Windows."""
-    if platform.system() != 'Windows':
+    """Windows 11 Mica/Acrylic backdrop with graceful fallback."""
+    if platform.system() != "Windows":
         return False
+
+    hwnd = wintypes.HWND(hwnd)
+    dwmapi = ctypes.windll.dwmapi
+
+    DWMWA_SYSTEMBACKDROP_TYPE = 38
+    DWMSBT_AUTO = 0
+    DWMSBT_NONE = 1
+    DWMSBT_MAINWINDOW = 2
+    DWMSBT_TRANSIENTWINDOW = 3
+    DWMSBT_TABBEDWINDOW = 4
+    DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+
+    def _set_attr(attribute, value):
+        value = ctypes.c_int(value)
+        return dwmapi.DwmSetWindowAttribute(
+            hwnd, attribute, ctypes.byref(value), ctypes.sizeof(value)
+        ) == 0
+
     try:
-        DWMWA_SYSTEMBACKDROP_TYPE = 38
-        DWMSBT_MAINWINDOW = 0
-        ctypes.windll.dwmapi.DwmSetWindowAttribute(
-            hwnd, DWMWA_SYSTEMBACKDROP_TYPE,
-            ctypes.byref(ctypes.c_int(DWMSBT_MAINWINDOW)),
-            ctypes.sizeof(ctypes.c_int)
-        )
-        return True
+        _set_attr(DWMWA_USE_IMMERSIVE_DARK_MODE, 1)
     except Exception:
         pass
+
     try:
-        class ACCENTPOLICY(ctypes.Structure):
+        if _set_attr(DWMWA_SYSTEMBACKDROP_TYPE, DWMSBT_MAINWINDOW):
+            return True
+    except Exception:
+        pass
+
+    try:
+        if _set_attr(DWMWA_SYSTEMBACKDROP_TYPE, DWMSBT_TRANSIENTWINDOW):
+            return True
+    except Exception:
+        pass
+
+    try:
+        class ACCENT_POLICY(ctypes.Structure):
             _fields_ = [
-                ("AccentState", ctypes.c_uint),
-                ("AccentFlags", ctypes.c_uint),
+                ("AccentState", ctypes.c_int),
+                ("AccentFlags", ctypes.c_int),
                 ("GradientColor", ctypes.c_uint),
-                ("AnimationId", ctypes.c_uint),
+                ("AnimationId", ctypes.c_int),
             ]
-        class WINCOMPATTRDATA(ctypes.Structure):
+
+        class WINDOWCOMPOSITIONATTRIBDATA(ctypes.Structure):
             _fields_ = [
                 ("Attribute", ctypes.c_int),
-                ("Data", ctypes.POINTER(ACCENTPOLICY)),
+                ("Data", ctypes.c_void_p),
                 ("SizeOfData", ctypes.c_size_t),
             ]
-        accent = ACCENTPOLICY()
+
+        accent = ACCENT_POLICY()
         accent.AccentState = 4
-        accent.GradientColor = 0x00101010
-        data = WINCOMPATTRDATA()
+        accent.GradientColor = 0x99202020
+        accent.AccentFlags = 2
+
+        data = WINDOWCOMPOSITIONATTRIBDATA()
         data.Attribute = 19
+        data.Data = ctypes.cast(ctypes.pointer(accent), ctypes.c_void_p)
         data.SizeOfData = ctypes.sizeof(accent)
-        data.Data = ctypes.pointer(accent)
+
         ctypes.windll.user32.SetWindowCompositionAttribute(hwnd, ctypes.byref(data))
         return True
+
     except Exception:
         return False
 
@@ -104,10 +135,6 @@ class TagAutocompleteModel(QAbstractListModel):
             return entry.category
         if role == Qt.UserRole + 2:
             return entry.post_count
-        if role == Qt.ToolTipRole:
-            cat_name = CATEGORY_NAMES.get(entry.category, "Unknown")
-            count_str = f"{entry.post_count:,}" if entry.post_count else "?"
-            return f"{entry.name} ({cat_name}, {count_str} posts)"
         return None
 
     def set_entries(self, entries):
@@ -121,11 +148,13 @@ class TagAutocompleteModel(QAbstractListModel):
         return None
 
 
-GLASS_SELECTED = QColor(139, 92, 246, 64)
-GLASS_HOVER = QColor(255, 255, 255, 12)
-GLASS_TEXT = QColor("#eee")
-GLASS_TEXT_SELECTED = QColor("#fff")
-GLASS_COUNT = QColor("#999")
+GLASS_SELECTED = QColor(139, 92, 246, 45)
+GLASS_HOVER = QColor(255,255,255,18)
+
+GLASS_TEXT = QColor(245,245,245)
+GLASS_TEXT_SELECTED = QColor(255,255,255)
+
+GLASS_COUNT = QColor(185,185,185)
 
 class TagAutocompleteDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
@@ -147,8 +176,8 @@ class TagAutocompleteDelegate(QStyledItemDelegate):
 
         color = CATEGORY_COLORS.get(category, CATEGORY_COLORS[0])
         alpha_color = QColor(color)
-        alpha_color.setAlpha(180)
-        bar_rect = option.rect.adjusted(2, 4, -(option.rect.width() - 8), -4)
+        alpha_color.setAlpha(220)
+        bar_rect = option.rect.adjusted(4, 5, -(option.rect.width() - 7), -5)
         painter.fillRect(bar_rect, alpha_color)
 
         text_rect = option.rect.adjusted(14, 0, -80, 0)
@@ -189,24 +218,74 @@ class TagAutocompletePopup(QListView):
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_NativeWindow)
         self.setFocusPolicy(Qt.NoFocus)
         self.setSelectionMode(QAbstractItemView.SingleSelection)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.setMouseTracking(True)
+        self.setUniformItemSizes(True)
         self.setMaximumHeight(300)
         self.setMinimumWidth(200)
         self.clicked.connect(self._on_clicked)
+
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(50)
+        shadow.setOffset(0, 8)
+        shadow.setColor(QColor(0, 0, 0, 140))
+        self.setGraphicsEffect(shadow)
+
         self.setStyleSheet("""
-            QListView {
-                background: rgba(18, 20, 21, 200);
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 8px;
-                padding: 4px;
-            }
-            QListView::item {
-                padding: 4px 8px;
-            }
+QListView {
+    background: rgba(22,24,28,90);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 14px;
+    padding: 8px;
+    outline: none;
+}
+
+QListView::item {
+    background: transparent;
+    padding: 6px 12px;
+    border-radius: 8px;
+}
+
+QListView::item:selected {
+    background: rgba(139,92,246,0.18);
+    color: white;
+}
+
+QListView::item:hover {
+    background: rgba(255,255,255,0.06);
+}
+
+QScrollBar:vertical {
+    background: rgba(255,255,255,0.04);
+    width: 10px;
+    margin: 6px 2px 6px 0;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical {
+    background: rgba(255,255,255,0.22);
+    border-radius: 4px;
+    min-height: 24px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: rgba(255,255,255,0.32);
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    background: transparent;
+    height: 0px;
+}
+
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: transparent;
+}
         """)
         self._input_widget = None
         QApplication.instance().installEventFilter(self)
@@ -255,16 +334,20 @@ class TagAutocompletePopup(QListView):
         self._model.set_entries(entries)
         row_height = 26
         h = min(300, len(entries) * row_height + 6)
-        w = max(260, anchor_rect.width())
+        w = anchor_rect.width()
         self.setFixedWidth(w)
         self.setFixedHeight(h)
         screen = QApplication.primaryScreen()
         if screen:
             available = screen.availableGeometry()
+            # Position directly below the input, left-aligned
             global_pos = anchor_rect.bottomLeft()
-            right = global_pos.x() + w
-            if right > available.right():
+            # Clamp horizontally
+            if global_pos.x() + w > available.right():
                 global_pos.setX(available.right() - w)
+            if global_pos.x() < available.left():
+                global_pos.setX(available.left())
+            # If doesn't fit below, show above
             bottom = global_pos.y() + h
             if bottom > available.bottom():
                 global_pos.setY(anchor_rect.top() - h)
