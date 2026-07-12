@@ -2,9 +2,9 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QLabel,
     QLineEdit, QPushButton, QMenu, QAction, QMessageBox
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QRect
+from PyQt5.QtCore import Qt, pyqtSignal, QRect, QPoint
 from core.tag_manager import TagManager
-from core.danbooru_client import DanbooruClient
+from core.booru_source_manager import BooruSourceManager
 from core.danbooru_tag_db import DanbooruTagDB
 from ui.tag_inspector import TagInspector
 from ui.tag_autocomplete import TagAutocompletePopup, TagEntry
@@ -31,10 +31,10 @@ class TagListWidget(QListWidget):
 class TagPanel(QWidget):
     tags_changed = pyqtSignal(list)
 
-    def __init__(self, tag_manager: TagManager, danbooru_client: DanbooruClient = None, tag_db: DanbooruTagDB = None, parent=None):
+    def __init__(self, tag_manager: TagManager, source_manager: BooruSourceManager = None, tag_db: DanbooruTagDB = None, parent=None):
         super().__init__(parent)
         self.tag_manager = tag_manager
-        self.danbooru_client = danbooru_client
+        self.source_manager = source_manager
         self.tag_db = tag_db
         self.all_tags = []
         self.filter_text = ""
@@ -42,15 +42,15 @@ class TagPanel(QWidget):
         self._current_inspected_tag = None
         self.setup_ui()
         self.tag_manager.tags_changed.connect(self._on_tags_changed)
-        if self.danbooru_client:
-            self.danbooru_client.autocomplete_results.connect(self._on_autocomplete_results)
-            self.danbooru_client.autocomplete_error.connect(lambda q, e: logger.warning(f"Autocomplete error for '{q}': {e}"))
-            self.danbooru_client.tag_info_fetched.connect(self._on_tag_info_fetched)
-            self.danbooru_client.tag_info_error.connect(self._on_tag_info_error)
-            self.danbooru_client.wiki_fetched.connect(self._on_wiki_fetched)
-            self.danbooru_client.example_posts_fetched.connect(self._on_example_posts_fetched)
-            self.danbooru_client.preview_loaded.connect(self._on_preview_loaded)
-            self.danbooru_client.credentials_missing.connect(self._on_credentials_missing)
+        if self.source_manager:
+            self.source_manager.autocomplete_results.connect(self._on_autocomplete_results)
+            self.source_manager.autocomplete_error.connect(lambda q, e: logger.warning(f"Autocomplete error for '{q}': {e}"))
+            self.source_manager.tag_info_fetched.connect(self._on_tag_info_fetched)
+            self.source_manager.tag_info_error.connect(self._on_tag_info_error)
+            self.source_manager.wiki_fetched.connect(self._on_wiki_fetched)
+            self.source_manager.example_posts_fetched.connect(self._on_example_posts_fetched)
+            self.source_manager.preview_loaded.connect(self._on_preview_loaded)
+            self.source_manager.credentials_missing.connect(self._on_credentials_missing)
             self.setup_autocomplete()
 
     def setup_ui(self):
@@ -101,11 +101,9 @@ class TagPanel(QWidget):
             self._last_api_query = ""
             return
         results = self.tag_db.search(text) if self.tag_db and self.tag_db.is_loaded else []
-        api_rect = QRect(self.add_input.mapToGlobal(
-            self.add_input.geometry().topLeft()),
-            self.add_input.size()
-        )
-        api_rect.setTop(api_rect.bottom())
+        # Compute anchor rect: directly below the input, same width
+        global_pos = self.add_input.mapToGlobal(QPoint(0, self.add_input.height()))
+        api_rect = QRect(global_pos, self.add_input.size())
         api_rect.setHeight(0)
         if results:
             self._autocomplete_popup.show_suggestions(
@@ -114,9 +112,9 @@ class TagPanel(QWidget):
             )
         else:
             self._autocomplete_popup.hide()
-        if self.danbooru_client:
+        if self.source_manager:
             self._last_api_query = text
-            self.danbooru_client.autocomplete(text)
+            self.source_manager.autocomplete(text)
 
     def _on_autocomplete_results(self, query, tags):
         if not self.add_input.text().startswith(query):
@@ -134,17 +132,14 @@ class TagPanel(QWidget):
                 else:
                     merged.append(TagEntry(t))
                 seen.add(name)
-        api_rect = QRect(self.add_input.mapToGlobal(
-            self.add_input.geometry().topLeft()),
-            self.add_input.size()
-        )
-        api_rect.setTop(api_rect.bottom())
+        global_pos = self.add_input.mapToGlobal(QPoint(0, self.add_input.height()))
+        api_rect = QRect(global_pos, self.add_input.size())
         api_rect.setHeight(0)
         self._autocomplete_popup.show_suggestions(merged, api_rect)
 
     def _on_item_double_click(self, item):
         tag = item.text()
-        if self.danbooru_client:
+        if self.source_manager:
             self.show_tag_inspector(tag)
 
     def show_tag_inspector(self, tag):
@@ -155,10 +150,10 @@ class TagPanel(QWidget):
         self.inspector.show()
         self.inspector.raise_()
         self._current_inspected_tag = tag
-        if self.danbooru_client:
-            self.danbooru_client.fetch_tag_info(tag)
-            self.danbooru_client.fetch_wiki(tag)
-            self.danbooru_client.fetch_example_posts(tag)
+        if self.source_manager:
+            self.source_manager.fetch_tag_info(tag)
+            self.source_manager.fetch_wiki(tag)
+            self.source_manager.fetch_example_posts(tag)
 
     def _on_tag_info_fetched(self, tag, info):
         if tag != self._current_inspected_tag:
@@ -186,7 +181,7 @@ class TagPanel(QWidget):
             for i, post in enumerate(posts):
                 url = post.get('preview_url')
                 if url:
-                    self.danbooru_client.fetch_preview_image(tag, i, url)
+                    self.source_manager.fetch_preview_image(tag, i, url)
 
     def _on_preview_loaded(self, tag, index, pixmap):
         if tag != self._current_inspected_tag:
@@ -247,7 +242,7 @@ class TagPanel(QWidget):
 
     def _inspect_selected(self):
         items = self.tag_list.selectedItems()
-        if items and self.danbooru_client:
+        if items and self.source_manager:
             tag = items[0].text()
             self.show_tag_inspector(tag)
 
