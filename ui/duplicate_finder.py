@@ -13,6 +13,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QObject, QRunnable, QThreadPool
 from PyQt5.QtGui import QPixmap, QIcon
 from pathlib import Path
 from core.duplicate_detector import DuplicateDetector
+from ui.windows_theme import dark_question, dark_information, dark_warning, dark_critical
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,7 @@ class DuplicateGroupWidget(QWidget):
         layout.addWidget(scroll)
 
     def _delete_file(self, path):
-        reply = QMessageBox.question(
+        reply = dark_question(
             self, "Delete File",
             f"Delete {path.name}?",
             QMessageBox.Yes | QMessageBox.No
@@ -109,7 +110,7 @@ class DuplicateGroupWidget(QWidget):
                 path.unlink()
                 self.deleted.emit(path)
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Could not delete: {e}")
+                dark_critical(self, "Error", f"Could not delete: {e}")
 
 
 class DuplicateFinder(QWidget):
@@ -230,15 +231,15 @@ class DuplicateFinder(QWidget):
 
     def select_all(self):
         # Not implemented: placeholder
-        QMessageBox.information(self, "Select All", "Select all duplicates (feature coming soon)")
+        dark_information(self, "Select All", "Select all duplicates (feature coming soon)")
 
     def delete_selected(self):
-        QMessageBox.information(self, "Delete Selected", "Delete selected (feature coming soon)")
+        dark_information(self, "Delete Selected", "Delete selected (feature coming soon)")
 
     def keep_best(self):
         if not self.groups:
             return
-        reply = QMessageBox.question(
+        reply = dark_question(
             self, "Keep Best",
             "Keep one image per group (the one with largest resolution) and delete the rest?",
             QMessageBox.Yes | QMessageBox.No
@@ -272,5 +273,5 @@ class DuplicateFinder(QWidget):
                             self.image_paths.remove(p)
                     except Exception as e:
                         logger.warning(f"Failed to delete {p}: {e}")
-        QMessageBox.information(self, "Cleanup Complete", f"Deleted {deleted_count} duplicate files.")
+        dark_information(self, "Cleanup Complete", f"Deleted {deleted_count} duplicate files.")
         self.scan()  # Re-scan to update view
