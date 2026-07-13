@@ -30,6 +30,7 @@ class CacheManager:
     """LRU cache with TTL."""
     def __init__(self, ttl=CACHE_TTL, maxsize=1000):
         self._ttl = ttl
+        self._maxsize = maxsize
         self._cache = {}
         self._access_order = []
 
@@ -46,7 +47,9 @@ class CacheManager:
         return entry['value']
 
     def put(self, key, value):
-        if len(self._cache) >= 1000:
+        if key in self._access_order:
+            self._access_order.remove(key)
+        if len(self._cache) >= self._maxsize:
             old_key = self._access_order.pop(0)
             del self._cache[old_key]
         self._cache[key] = {
@@ -191,47 +194,47 @@ class BooruClientBase(QObject):
 
     def _get_headers(self) -> dict:
         """Return request headers for this source."""
-        pass
+        raise NotImplementedError
 
     def _get_auth_params(self) -> tuple:
         """Return (auth, params) for authentication."""
-        pass
+        raise NotImplementedError
 
     def _has_credentials(self) -> bool:
         """Return True if valid credentials are configured."""
-        pass
+        raise NotImplementedError
 
     def _parse_tag_search(self, data: Any, query: str) -> list:
         """Parse API response into normalized tag list: [{name, category, post_count}]"""
-        pass
+        raise NotImplementedError
 
     def _parse_tag_info(self, data: Any, tag: str) -> dict:
         """Parse API response into normalized tag info dict."""
-        pass
+        raise NotImplementedError
 
     def _parse_wiki(self, data: Any, tag: str) -> str:
         """Parse API response into wiki body string."""
-        pass
+        raise NotImplementedError
 
     def _parse_posts(self, data: Any, tag: str) -> list:
         """Parse API response into normalized post list: [{id, preview_url, file_url, large_url}]"""
-        pass
+        raise NotImplementedError
 
     def _get_tag_search_endpoint(self) -> str:
         """Return the API endpoint for tag search."""
-        pass
+        raise NotImplementedError
 
     def _get_tag_info_endpoint(self) -> str:
         """Return the API endpoint for tag info."""
-        pass
+        raise NotImplementedError
 
     def _get_wiki_endpoint(self) -> str:
         """Return the API endpoint for wiki."""
-        pass
+        raise NotImplementedError
 
     def _get_posts_endpoint(self) -> str:
         """Return the API endpoint for posts."""
-        pass
+        raise NotImplementedError
 
     def _enqueue_request(self, request_type, endpoint, params, tag=None, query=None):
         self._request_queue.append({
@@ -297,7 +300,7 @@ class BooruClientBase(QObject):
 
     def _get_cookies(self) -> str:
         """Return cookies string for this source."""
-        pass
+        raise NotImplementedError
 
     def fetch_tag_info(self, tag: str):
         if not tag or not self._enabled:
@@ -314,7 +317,7 @@ class BooruClientBase(QObject):
 
     def _get_tag_search_params(self, tag: str) -> dict:
         """Return params for searching a specific tag."""
-        pass
+        raise NotImplementedError
 
     def _handle_tag_info_response(self, tag, response):
         try:
@@ -350,7 +353,7 @@ class BooruClientBase(QObject):
 
     def _get_autocomplete_params(self, query: str) -> dict:
         """Return params for autocomplete search."""
-        pass
+        raise NotImplementedError
 
     def _handle_autocomplete_response(self, query, response):
         try:
@@ -382,7 +385,7 @@ class BooruClientBase(QObject):
 
     def _get_wiki_params(self, tag: str) -> dict:
         """Return params for wiki search."""
-        pass
+        raise NotImplementedError
 
     def _handle_wiki_response(self, tag, response):
         try:
@@ -407,7 +410,7 @@ class BooruClientBase(QObject):
 
     def _get_posts_params(self, tag: str) -> dict:
         """Return params for fetching posts."""
-        pass
+        raise NotImplementedError
 
     def _cf_blocked(self, response) -> bool:
         """Detect Cloudflare challenge pages."""
