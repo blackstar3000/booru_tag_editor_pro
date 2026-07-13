@@ -1,20 +1,14 @@
 {
   "window": {
     "width": 1920,
-    "height": 1051,
+    "height": 1080,
     "x": -1,
     "y": -9,
     "maximized": true
   },
   "splitters": {
-    "main": [
-      931,
-      970
-    ],
-    "left": [
-      899,
-      0
-    ]
+    "main": [931, 970],
+    "left": [899, 0]
   },
   "right_panel": {
     "selected_tab": 0
