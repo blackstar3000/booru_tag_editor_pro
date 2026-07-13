@@ -5,7 +5,6 @@ Booru Search Dialog – search posts with thumbnail gallery, click to pull tags.
 
 import logging
 import os
-import ctypes
 import webbrowser
 from collections import OrderedDict
 from PyQt5.QtWidgets import (
@@ -18,6 +17,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QSize, QThread, pyqtSlot, QTimer
 from PyQt5.QtGui import QPixmap, QImage
 
 from core.booru_source_manager import BooruSourceManager
+from ui.windows_theme import set_dark_title_bar
 
 logger = logging.getLogger(__name__)
 
@@ -592,15 +592,7 @@ class BooruSearchDialog(QDialog):
 
         def on_show(event):
             super(QDialog, dlg).showEvent(event)
-            try:
-                hwnd = int(dlg.winId())
-                DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-                ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                    hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
-                    ctypes.byref(ctypes.c_int(1)), ctypes.sizeof(ctypes.c_int)
-                )
-            except Exception:
-                pass
+            set_dark_title_bar(dlg)
             thread.start()
 
         dlg.showEvent = on_show
@@ -636,15 +628,7 @@ class BooruSearchDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        try:
-            hwnd = int(self.winId())
-            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
-                ctypes.byref(ctypes.c_int(1)), ctypes.sizeof(ctypes.c_int)
-            )
-        except Exception:
-            pass
+        set_dark_title_bar(self)
 
     def closeEvent(self, event):
         try:
