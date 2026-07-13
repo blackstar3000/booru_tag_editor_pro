@@ -1,9 +1,11 @@
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidget,
-    QListWidgetItem, QPushButton, QInputDialog, QMessageBox,
+    QListWidgetItem, QPushButton, QMessageBox,
     QFileDialog, QAbstractItemView,
 )
 from PyQt5.QtCore import Qt, pyqtSignal
+
+from ui.windows_theme import set_dark_title_bar, dark_get_text, dark_question
 
 
 class WorkspaceManagerDialog(QDialog):
@@ -118,7 +120,7 @@ class WorkspaceManagerDialog(QDialog):
         name = self._selected_name()
         if not name:
             return
-        new_name, ok = QInputDialog.getText(self, "Rename Workspace", "New name:", text=name)
+        new_name, ok = dark_get_text(self, "Rename Workspace", "New name:", text=name)
         if ok and new_name.strip() and new_name.strip() != name:
             self.workspace_renamed.emit(name, new_name.strip())
 
@@ -126,7 +128,7 @@ class WorkspaceManagerDialog(QDialog):
         name = self._selected_name()
         if not name:
             return
-        new_name, ok = QInputDialog.getText(self, "Duplicate Workspace", "New name:", text=f"{name} Copy")
+        new_name, ok = dark_get_text(self, "Duplicate Workspace", "New name:", text=f"{name} Copy")
         if ok and new_name.strip():
             self.workspace_duplicated.emit(name, new_name.strip())
 
@@ -134,7 +136,7 @@ class WorkspaceManagerDialog(QDialog):
         name = self._selected_name()
         if not name:
             return
-        reply = QMessageBox.question(
+        reply = dark_question(
             self, "Delete Workspace",
             f"Delete workspace '{name}'?\nThis cannot be undone.",
             QMessageBox.Yes | QMessageBox.No,
@@ -177,3 +179,7 @@ class WorkspaceManagerDialog(QDialog):
         self._names = list(names)
         self._startup = startup
         self._refresh_list()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        set_dark_title_bar(self)
