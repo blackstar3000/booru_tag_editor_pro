@@ -121,12 +121,17 @@ class DanbooruClient(BooruClientBase):
     def _parse_posts(self, data: Any, tag: str) -> list:
         posts = []
         post_list = data if isinstance(data, list) else []
-        for p in post_list[:3]:
+        for p in post_list:
+            tags_str = p.get('tag_string', '')
+            all_tags = tags_str.split() if tags_str else []
             posts.append({
                 'id': p.get('id'),
                 'preview_url': p.get('preview_file_url'),
                 'file_url': p.get('file_url'),
                 'large_url': p.get('large_file_url'),
+                'tags': all_tags,
+                'rating': p.get('rating', ''),
+                'score': p.get('score', 0),
             })
         return posts
 
