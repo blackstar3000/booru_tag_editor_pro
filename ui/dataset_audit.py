@@ -14,6 +14,7 @@ from pathlib import Path
 from collections import Counter
 from PIL import Image
 import json
+from ui.windows_theme import dark_question, dark_information, dark_warning, dark_critical
 
 logger = logging.getLogger(__name__)
 
@@ -213,7 +214,7 @@ class DatasetAudit(QWidget):
 
     def run_audit(self):
         if not self.image_paths:
-            QMessageBox.information(self, "No Images", "Load a folder first.")
+            dark_information(self, "No Images", "Load a folder first.")
             return
         self.clear_report()
         self.progress_bar.setVisible(True)
@@ -302,6 +303,6 @@ Resolutions:
             try:
                 with open(file_path, 'w', encoding='utf-8') as f:
                     json.dump(self.report, f, indent=2, ensure_ascii=False)
-                QMessageBox.information(self, "Export", f"Report saved to {file_path}")
+                dark_information(self, "Export", f"Report saved to {file_path}")
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Could not save: {e}")
+                dark_critical(self, "Error", f"Could not save: {e}")
