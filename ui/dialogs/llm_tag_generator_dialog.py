@@ -4,7 +4,6 @@ LLM Tag Generator Dialog – convert natural language scene descriptions
 into validated booru tags using a local LLM server.
 """
 
-import ctypes
 import logging
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
@@ -20,6 +19,7 @@ from core.tag_validator import (
     apply_template
 )
 from core.settings_manager import SettingsManager
+from ui.windows_theme import set_dark_title_bar
 
 logger = logging.getLogger(__name__)
 
@@ -375,15 +375,7 @@ class LLMTagGeneratorDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        try:
-            hwnd = int(self.winId())
-            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
-                ctypes.byref(ctypes.c_int(1)), ctypes.sizeof(ctypes.c_int)
-            )
-        except Exception:
-            pass
+        set_dark_title_bar(self)
 
     def _glass_stylesheet(self):
         return """
