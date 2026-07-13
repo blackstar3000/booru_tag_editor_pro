@@ -46,11 +46,11 @@ class SettingsManager:
             raw = [str(p) for p in raw]
         else:
             raw = []
-        return [p for p in raw if p and Path(p).exists()]
+        return [p for p in raw if p]
 
     @recent_folders.setter
     def recent_folders(self, folders):
-        folders = [str(p) for p in folders if p and Path(p).exists()]
+        folders = [str(p) for p in folders if p]
         self.set("recent_folders", folders)
 
     @property
@@ -148,3 +148,90 @@ class SettingsManager:
     @yandere_cookies.setter
     def yandere_cookies(self, value):
         self.set("yandere_cookies", value)
+
+    # --- Konachan ---
+    @property
+    def konachan_api_key(self):
+        return self.get("konachan_api_key", "")
+
+    @konachan_api_key.setter
+    def konachan_api_key(self, value):
+        self.set("konachan_api_key", value)
+
+    @property
+    def konachan_cookies(self):
+        return self.get("konachan_cookies", "")
+
+    @konachan_cookies.setter
+    def konachan_cookies(self, value):
+        self.set("konachan_cookies", value)
+
+    # --- LLM ---
+    @property
+    def llm_server_url(self):
+        return self.get("llm_server_url", "http://localhost:11434")
+
+    @llm_server_url.setter
+    def llm_server_url(self, value):
+        self.set("llm_server_url", value)
+
+    @property
+    def llm_model(self):
+        return self.get("llm_model", "qwen3:1.7b")
+
+    @llm_model.setter
+    def llm_model(self, value):
+        self.set("llm_model", value)
+
+    @property
+    def llm_temperature(self):
+        val = self.get("llm_temperature", "0.4")
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return 0.4
+
+    @llm_temperature.setter
+    def llm_temperature(self, value):
+        self.set("llm_temperature", str(value))
+
+    @property
+    def llm_max_tokens(self):
+        val = self.get("llm_max_tokens", "500")
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return 500
+
+    @llm_max_tokens.setter
+    def llm_max_tokens(self, value):
+        self.set("llm_max_tokens", str(value))
+
+    @property
+    def llm_enable_thinking(self):
+        val = self.get("llm_enable_thinking", "false")
+        return str(val).lower() in ("true", "1", "yes")
+
+    @llm_enable_thinking.setter
+    def llm_enable_thinking(self, value):
+        self.set("llm_enable_thinking", "true" if value else "false")
+
+    @property
+    def llm_api_key(self):
+        return self.get("llm_api_key", "")
+
+    @llm_api_key.setter
+    def llm_api_key(self, value):
+        self.set("llm_api_key", value)
+
+    @property
+    def llm_timeout(self):
+        val = self.get("llm_timeout", "120")
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return 120
+
+    @llm_timeout.setter
+    def llm_timeout(self, value):
+        self.set("llm_timeout", str(value))
