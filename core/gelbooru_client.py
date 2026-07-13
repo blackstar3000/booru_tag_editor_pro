@@ -4,7 +4,7 @@
 import logging
 from typing import Any, List, Dict
 
-from core.booru_client_base import BooruClientBase
+from core.booru_client_base import BooruClientBase, _normalize_tag
 from core.settings_manager import SettingsManager
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ class GelbooruClient(BooruClientBase):
             's': 'tag',
             'q': 'index',
             'json': 1,
-            'name': tag,
+            'name': _normalize_tag(tag),
             'limit': 5,
         }
 
