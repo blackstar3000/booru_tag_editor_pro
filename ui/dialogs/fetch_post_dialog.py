@@ -4,6 +4,7 @@ Fetch Post Dialog – paste a booru URL or ID, fetch tags from any source.
 """
 
 import re
+import ctypes
 import logging
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
@@ -367,3 +368,15 @@ class FetchPostDialog(QDialog):
         if self._selected_tags:
             self.tags_fetched.emit(self._selected_tags)
             self.status_label.setText(f"Replaced with {len(self._selected_tags)} tags.")
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        try:
+            hwnd = int(self.winId())
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                ctypes.byref(ctypes.c_int(1)), ctypes.sizeof(ctypes.c_int)
+            )
+        except Exception:
+            pass
