@@ -2,9 +2,10 @@
 # Rule34 API client (Gelbooru-style dapi).
 
 import logging
+import xml.etree.ElementTree as ET
 from typing import Any
 
-from core.booru_client_base import BooruClientBase
+from core.booru_client_base import BooruClientBase, _normalize_tag
 from core.settings_manager import SettingsManager
 
 logger = logging.getLogger(__name__)
@@ -82,19 +83,14 @@ class Rule34Client(BooruClientBase):
             's': 'tag',
             'q': 'index',
             'json': 1,
-            'name': tag,
+            'name': _normalize_tag(tag),
             'limit': 5,
         }
 
-    def _get_autocomplete_params(self, query: str) -> dict:
-        return {
-            'page': 'dapi',
-            's': 'tag',
-            'q': 'index',
-            'json': 1,
-            'name_pattern': f'{query}%',
-            'limit': 10,
-        }
+    def autocomplete(self, query: str):
+        # Rule34 tag API ignores name_pattern entirely — return empty,
+        # local TagDB handles autocomplete for all sources.
+        self.autocomplete_results.emit(self.source_name, query, [])
 
     def _get_wiki_params(self, tag: str) -> dict:
         return {
@@ -199,6 +195,42 @@ class Rule34Client(BooruClientBase):
             'rating': p.get('rating', ''),
             'score': p.get('score', 0),
         }
+
+    def _parse_xml_tags(self, xml_text: str) -> list:
+        """Parse Rule34 XML tag response into a list of tag dicts."""
+        tags = []
+        try:
+            root = ET.fromstring(xml_text)
+            for t in root.findall('tag'):
+                name = t.get('name', '')
+                count = int(t.get('count', 0))
+                cat_type = t.get('type', 'general')
+                category = RULE34_CATEGORY_MAP.get(cat_type, 0)
+                tags.append({'name': name, 'category': category, 'post_count': count})
+        except ET.ParseError:
+            pass
+        return tags
+
+    def _handle_tag_info_response(self, tag, response):
+        try:
+            if response.status_code == 200:
+                text = response.text.strip()
+                if text.startswith('<') or text.startswith('<?xml'):
+                    tags = self._parse_xml_tags(text)
+                    data = {'tag': tags}
+                else:
+                    data = response.json()
+                info = self._parse_tag_info(data, tag)
+                if info:
+                    self._tag_cache.put(tag, info)
+                    self.tag_info_fetched.emit(self.source_name, tag, info)
+                else:
+                    self.tag_info_error.emit(self.source_name, tag, "Tag not found")
+            else:
+                self.tag_info_error.emit(self.source_name, tag, f"HTTP {response.status_code}")
+        except Exception as e:
+            self.tag_info_error.emit(self.source_name, tag, f"Error: {e}")
+        self._process_queue()
 
     def reload_settings(self):
         self._reload_credentials()
