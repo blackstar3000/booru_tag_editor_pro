@@ -158,11 +158,16 @@ class GelbooruClient(BooruClientBase):
         posts = []
         post_list = data.get('post', []) if isinstance(data, dict) else data if isinstance(data, list) else []
         for p in post_list:
+            tags_str = p.get('tags', '')
+            all_tags = tags_str.split() if tags_str else []
             posts.append({
                 'id': p.get('id'),
                 'preview_url': p.get('preview_url', p.get('thumbnail_src')),
                 'file_url': p.get('file_url'),
                 'large_url': p.get('large_url', p.get('file_url')),
+                'tags': all_tags,
+                'rating': p.get('rating', ''),
+                'score': p.get('score', 0),
             })
         return posts
 
