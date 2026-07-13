@@ -4,6 +4,8 @@ from PyQt5.QtCore import QUrl
 import cloudscraper
 import logging
 
+from ui.windows_theme import set_dark_title_bar, dark_question, dark_information, dark_warning, dark_critical
+
 logger = logging.getLogger(__name__)
 
 class SettingsDialog(QDialog):
@@ -67,14 +69,14 @@ class SettingsDialog(QDialog):
         text = clipboard.text()
         if text:
             self.cookies_input.setPlainText(text)
-            QMessageBox.information(self, "Pasted", "Cookies pasted from clipboard.")
+            dark_information(self, "Pasted", "Cookies pasted from clipboard.")
 
     def test_credentials(self):
         username = self.username_input.text().strip()
         api_key = self.api_key_input.text().strip()
         cookies = self.cookies_input.toPlainText().strip()
         if not username or not api_key:
-            QMessageBox.warning(self, "Missing Credentials", "Please enter both username and API key.")
+            dark_warning(self, "Missing Credentials", "Please enter both username and API key.")
             return
         try:
             scraper = cloudscraper.create_scraper()
@@ -86,11 +88,11 @@ class SettingsDialog(QDialog):
             url = f"https://danbooru.donmai.us/tags.json?search[name]=1girl&login={username}&api_key={api_key}"
             response = scraper.get(url, timeout=10)
             if response.status_code == 200:
-                QMessageBox.information(self, "Success", "Credentials are valid and API is reachable!")
+                dark_information(self, "Success", "Credentials are valid and API is reachable!")
             else:
-                QMessageBox.warning(self, "Error", f"API returned status {response.status_code}.\nResponse: {response.text[:200]}")
+                dark_warning(self, "Error", f"API returned status {response.status_code}.\nResponse: {response.text[:200]}")
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to connect to Danbooru:\n{e}")
+            dark_critical(self, "Error", f"Failed to connect to Danbooru:\n{e}")
 
     def values(self):
         return (
@@ -98,3 +100,7 @@ class SettingsDialog(QDialog):
             self.api_key_input.text().strip(),
             self.cookies_input.toPlainText().strip()
         )
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        set_dark_title_bar(self)
