@@ -260,8 +260,8 @@ class DuplicateFinder(QWidget):
                         if area > best_area:
                             best_area = area
                             best_path = p
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to read image {p}: {e}")
             if best_path:
                 to_delete = [p for p in paths if p != best_path]
                 for p in to_delete:
@@ -270,7 +270,7 @@ class DuplicateFinder(QWidget):
                         deleted_count += 1
                         if p in self.image_paths:
                             self.image_paths.remove(p)
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Failed to delete {p}: {e}")
         QMessageBox.information(self, "Cleanup Complete", f"Deleted {deleted_count} duplicate files.")
         self.scan()  # Re-scan to update view
