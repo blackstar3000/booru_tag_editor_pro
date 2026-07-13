@@ -16,6 +16,7 @@ from pathlib import Path
 
 from core.smart_collection import SmartCollection, CollectionManager, Condition
 from core.advanced_bulk import AdvancedBulkOperations
+from ui.windows_theme import dark_question, dark_information, dark_warning, dark_critical
 
 logger = logging.getLogger(__name__)
 
@@ -330,7 +331,7 @@ class SmartTools(QWidget):
         if not item:
             return
         name = item.text()
-        if QMessageBox.question(self, "Delete", f"Delete collection '{name}'?") == QMessageBox.Yes:
+        if dark_question(self, "Delete", f"Delete collection '{name}'?") == QMessageBox.Yes:
             self.collection_manager.delete(name)
             self.refresh_collections_list()
             self._new_collection()
@@ -377,7 +378,7 @@ class SmartTools(QWidget):
     def _save_collection(self):
         name = self.name_edit.text().strip()
         if not name:
-            QMessageBox.warning(self, "Error", "Name is required.")
+            dark_warning(self, "Error", "Name is required.")
             return
         conditions = []
         for row in self.condition_items:
@@ -385,20 +386,20 @@ class SmartTools(QWidget):
             cop = row['operator'].currentText()
             val = row['value'].text().strip()
             if not val:
-                QMessageBox.warning(self, "Error", "All condition values must be filled.")
+                dark_warning(self, "Error", "All condition values must be filled.")
                 return
             if ctype in ["tag_count", "width", "height"]:
                 try:
                     val = int(val)
                 except ValueError:
-                    QMessageBox.warning(self, "Error", f"{ctype} requires a number.")
+                    dark_warning(self, "Error", f"{ctype} requires a number.")
                     return
             conditions.append({"type": ctype, "value": val, "operator": cop})
         logic = self.logic_combo.currentText()
         collection = SmartCollection(name, conditions, logic)
         self.collection_manager.add(collection)
         self.refresh_collections_list()
-        QMessageBox.information(self, "Saved", f"Collection '{name}' saved.")
+        dark_information(self, "Saved", f"Collection '{name}' saved.")
 
     def refresh_collections_list(self):
         self.collections_list.clear()
@@ -408,14 +409,14 @@ class SmartTools(QWidget):
     def _apply_collection(self):
         item = self.collections_list.currentItem()
         if not item:
-            QMessageBox.warning(self, "Error", "No collection selected.")
+            dark_warning(self, "Error", "No collection selected.")
             return
         name = item.text()
         collection = self.collection_manager.get(name)
         if not collection:
             return
         if not self.image_paths:
-            QMessageBox.warning(self, "Error", "No images loaded.")
+            dark_warning(self, "Error", "No images loaded.")
             return
         self.status_label.setText("Applying collection...")
         worker = CollectionApplyWorker(self.image_paths, collection)
@@ -493,7 +494,7 @@ class SmartTools(QWidget):
 
     def _run_bulk(self):
         if not self.image_paths:
-            QMessageBox.warning(self, "Error", "No images loaded.")
+            dark_warning(self, "Error", "No images loaded.")
             return
         op = self.op_combo.currentText()
         params = {}
@@ -558,7 +559,7 @@ class SmartTools(QWidget):
             elif op == "Normalize":
                 pass
         except Exception as e:
-            QMessageBox.warning(self, "Error", str(e))
+            dark_warning(self, "Error", str(e))
             return
 
         self.progress_bar.setVisible(True)
@@ -604,12 +605,12 @@ class SmartTools(QWidget):
         self.apply_btn.setEnabled(False)
         self._pending_worker = None
         self.status_label.setText(f"Error: {error}")
-        QMessageBox.critical(self, "Error", error)
+        dark_critical(self, "Error", error)
 
     def _apply_bulk(self):
         if not self._pending_worker:
             return
-        reply = QMessageBox.question(self, "Confirm", "Apply all pending changes? This cannot be undone easily.", QMessageBox.Yes | QMessageBox.No)
+        reply = dark_question(self, "Confirm", "Apply all pending changes? This cannot be undone easily.", QMessageBox.Yes | QMessageBox.No)
         if reply != QMessageBox.Yes:
             return
         written = self._pending_worker.apply()
@@ -617,7 +618,7 @@ class SmartTools(QWidget):
         self.apply_btn.setVisible(False)
         self.apply_btn.setEnabled(False)
         self.status_label.setText(f"Applied: {written} files modified.")
-        QMessageBox.information(self, "Complete", f"Applied changes to {written} files.")
+        dark_information(self, "Complete", f"Applied changes to {written} files.")
 
     # --- External API ---
     def set_image_paths(self, paths):
