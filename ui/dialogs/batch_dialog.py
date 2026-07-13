@@ -1,5 +1,8 @@
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QComboBox, QLineEdit, QDialogButtonBox, QLabel
 
+from ui.windows_theme import set_dark_title_bar
+
+
 class BatchDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -37,3 +40,7 @@ class BatchDialog(QDialog):
             "tag": self.tag_input.text().strip(),
             "replace_with": self.replace_with.text().strip()
         }
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        set_dark_title_bar(self)
