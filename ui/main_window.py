@@ -34,6 +34,8 @@ from ui.dialogs.workspace_save_dialog import SaveWorkspaceDialog
 from ui.dialogs.workspace_manager_dialog import WorkspaceManagerDialog
 from ui.dialogs.source_manager_dialog import SourceManagerDialog
 from ui.dialogs.fetch_post_dialog import FetchPostDialog
+from ui.dialogs.booru_search_dialog import BooruSearchDialog
+from ui.dialogs.tag_validator_dialog import TagValidatorDialog
 from core.workspace_manager import WorkspaceManager
 from ui.text_editor import TextEditor
 from ui.tooltips import attach_tooltip, register_tooltips
@@ -215,6 +217,42 @@ class MainWindow(QMainWindow):
         )
         self.fetch_post_btn.clicked.connect(self._open_fetch_post)
         toolbar.addWidget(self.fetch_post_btn)
+
+        # Booru Search button
+        self.booru_search_btn = QPushButton("🔎 Booru Search")
+        self.booru_search_btn.setStyleSheet(
+            "QPushButton { padding: 5px 14px; font-size: 12px; "
+            "background: rgba(99, 102, 241, 0.2); "
+            "border: 1px solid rgba(99, 102, 241, 0.3); "
+            "border-radius: 8px; color: #ccc; font-weight: bold; }"
+            "QPushButton:hover { background: rgba(99, 102, 241, 0.35); color: #fff; }"
+        )
+        self.booru_search_btn.clicked.connect(self._open_booru_search)
+        toolbar.addWidget(self.booru_search_btn)
+
+        # Tag Validator button
+        self.tag_validator_btn = QPushButton("✅ Tag Validator")
+        self.tag_validator_btn.setStyleSheet(
+            "QPushButton { padding: 5px 14px; font-size: 12px; "
+            "background: rgba(16, 185, 129, 0.2); "
+            "border: 1px solid rgba(16, 185, 129, 0.3); "
+            "border-radius: 8px; color: #ccc; font-weight: bold; }"
+            "QPushButton:hover { background: rgba(16, 185, 129, 0.35); color: #fff; }"
+        )
+        self.tag_validator_btn.clicked.connect(self._open_tag_validator)
+        toolbar.addWidget(self.tag_validator_btn)
+
+        # LLM Tag Generator button
+        self.llm_generator_btn = QPushButton("🧠 LLM Generator")
+        self.llm_generator_btn.setStyleSheet(
+            "QPushButton { padding: 5px 14px; font-size: 12px; "
+            "background: rgba(236, 72, 153, 0.2); "
+            "border: 1px solid rgba(236, 72, 153, 0.3); "
+            "border-radius: 8px; color: #ccc; font-weight: bold; }"
+            "QPushButton:hover { background: rgba(236, 72, 153, 0.35); color: #fff; }"
+        )
+        self.llm_generator_btn.clicked.connect(self._open_llm_generator)
+        toolbar.addWidget(self.llm_generator_btn)
 
         # Workspaces button
         self.workspace_menu_btn = QPushButton("Workspaces  ▾")
@@ -927,6 +965,41 @@ class MainWindow(QMainWindow):
         dlg = FetchPostDialog(self.source_manager, parent=self)
         dlg.tags_fetched.connect(self._on_fetched_tags)
         dlg.exec_()
+
+    def _open_booru_search(self):
+        """Open the Booru Search dialog."""
+        dlg = BooruSearchDialog(self.source_manager, parent=self)
+        dlg.tags_selected.connect(self._on_fetched_tags)
+        dlg.exec_()
+
+    def _open_tag_validator(self):
+        """Open the Tag Validator dialog."""
+        dlg = TagValidatorDialog(parent=self)
+        dlg.tags_validated.connect(self._on_validator_tags)
+        # Pre-fill with current tags if any
+        current_tags = ", ".join(self.tag_manager.tags)
+        if current_tags:
+            dlg.input_edit.setPlainText(current_tags)
+        dlg.exec_()
+
+    def _open_llm_generator(self):
+        """Open the LLM Tag Generator dialog."""
+        from ui.dialogs.llm_tag_generator_dialog import LLMTagGeneratorDialog
+        dlg = LLMTagGeneratorDialog(self.settings, parent=self)
+        dlg.tags_generated.connect(self._on_llm_tags_generated)
+        dlg.exec_()
+
+    def _on_llm_tags_generated(self, tags_text):
+        """Handle generated tags from LLM dialog."""
+        for tag in tags_text.split(","):
+            tag = tag.strip()
+            if tag:
+                self.tag_manager.add_tag(tag)
+
+    def _on_validator_tags(self, output, kept, dropped):
+        """Handle validated tags from Tag Validator dialog."""
+        for tag in kept:
+            self.tag_manager.add_tag(tag)
 
     def _on_fetched_tags(self, tags):
         """Add fetched tags to the current image."""
