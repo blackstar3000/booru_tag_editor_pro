@@ -2,12 +2,7 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QScrollArea
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap
 
-try:
-    import ctypes
-    from ctypes import wintypes
-    _HAS_DWM = True
-except ImportError:
-    _HAS_DWM = False
+from ui.windows_theme import set_dark_title_bar
 
 CATEGORY_NAMES = {0: "General", 1: "Artist", 3: "Copyright", 4: "Character", 5: "Meta"}
 
@@ -143,13 +138,4 @@ class TagInspector(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
-        if _HAS_DWM:
-            try:
-                hwnd = int(self.winId())
-                DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-                ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                    hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
-                    ctypes.byref(ctypes.c_int(1)), ctypes.sizeof(ctypes.c_int)
-                )
-            except Exception:
-                pass
+        set_dark_title_bar(self)
