@@ -3,8 +3,7 @@ import sys
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QToolBar, QAction,
     QSplitter, QTabWidget, QStatusBar, QMessageBox, QFileDialog, QApplication,
-    QLabel, QTextEdit, QPushButton, QCheckBox, QComboBox, QMenu,
-    QInputDialog
+    QLabel, QTextEdit, QPushButton, QCheckBox, QComboBox, QMenu
 )
 from PyQt5.QtCore import Qt, QThreadPool, QEvent
 from PyQt5.QtGui import QIcon, QKeySequence, QGuiApplication, QCursor
@@ -39,6 +38,7 @@ from ui.dialogs.tag_validator_dialog import TagValidatorDialog
 from core.workspace_manager import WorkspaceManager
 from ui.text_editor import TextEditor
 from ui.tooltips import attach_tooltip, register_tooltips
+from ui.windows_theme import dark_get_text, dark_question, dark_information, dark_warning, dark_critical
 
 import logging
 from pathlib import Path
@@ -651,8 +651,7 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"📋 Copied: {path.name}")
 
     def _rename_file(self, path):
-        from PyQt5.QtWidgets import QInputDialog
-        new_name, ok = QInputDialog.getText(self, "Rename", "New name:", text=path.stem)
+        new_name, ok = dark_get_text(self, "Rename", "New name:", text=path.stem)
         if ok and new_name:
             new_path = path.parent / f"{new_name}{path.suffix}"
             try:
@@ -660,7 +659,7 @@ class MainWindow(QMainWindow):
                 self.nav.refresh()
                 self.status_label.setText(f"✏️ Renamed to {new_path.name}")
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Could not rename:\n{e}")
+                dark_critical(self, "Error", f"Could not rename:\n{e}")
 
     def _show_delete_confirmation(self, path):
         msg = QMessageBox(self)
@@ -702,7 +701,7 @@ class MainWindow(QMainWindow):
             if txt_path.exists():
                 txt_path.unlink()
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Unable to delete \"{path.name}\".\n\nThe file may be in use or you may not have permission.")
+            dark_critical(self, "Error", f"Unable to delete \"{path.name}\".\n\nThe file may be in use or you may not have permission.")
             return
 
         self.image_loader.cache._cache.pop(path, None)
@@ -908,7 +907,7 @@ class MainWindow(QMainWindow):
             self.status_label.setText("✅ Saved")
             self.update_status()
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Could not save:\n{e}")
+            dark_critical(self, "Error", f"Could not save:\n{e}")
 
     def undo(self):
         if self.tag_manager.undo():
@@ -1008,7 +1007,7 @@ class MainWindow(QMainWindow):
 
     def open_batch_dialog(self):
         if not self.nav.image_paths or not self.nav.current_folder:
-            QMessageBox.information(self, "No Folder", "Load a folder first.")
+            dark_information(self, "No Folder", "Load a folder first.")
             return
         dlg = BatchDialog(self)
         if dlg.exec_():
@@ -1023,7 +1022,7 @@ class MainWindow(QMainWindow):
 
         txt_files = list(folder.glob("*.txt"))
         if not txt_files:
-            QMessageBox.information(self, "No Text Files", "No .txt files found in this folder.")
+            dark_information(self, "No Text Files", "No .txt files found in this folder.")
             return
 
         modified_count = 0
@@ -1057,7 +1056,7 @@ class MainWindow(QMainWindow):
                 except Exception as e:
                     logger.error(f"Failed to write {txt_path}: {e}")
 
-        QMessageBox.information(self, "Batch Complete", f"Modified {modified_count} files.")
+        dark_information(self, "Batch Complete", f"Modified {modified_count} files.")
         self.nav.refresh()
 
     # ── Workspace management ─────────────────────────────────────────
@@ -1208,7 +1207,7 @@ class MainWindow(QMainWindow):
         """Load a workspace by name."""
         data = self.workspace_manager.load(name)
         if data is None:
-            QMessageBox.warning(self, "Load Failed", f"Could not load workspace '{name}'.")
+            dark_warning(self, "Load Failed", f"Could not load workspace '{name}'.")
             return
         self.current_workspace_name = name
         self._restore_workspace_state(data)
@@ -1230,9 +1229,9 @@ class MainWindow(QMainWindow):
         """Rename the current workspace."""
         name = self.current_workspace_name
         if not name:
-            QMessageBox.information(self, "No Workspace", "No workspace is currently active.")
+            dark_information(self, "No Workspace", "No workspace is currently active.")
             return
-        new_name, ok = QInputDialog.getText(self, "Rename Workspace", "New name:", text=name)
+        new_name, ok = dark_get_text(self, "Rename Workspace", "New name:", text=name)
         if ok and new_name.strip() and new_name.strip() != name:
             if self.workspace_manager.rename(name, new_name.strip()):
                 self.current_workspace_name = new_name.strip()
@@ -1243,9 +1242,9 @@ class MainWindow(QMainWindow):
         """Duplicate the current workspace."""
         name = self.current_workspace_name
         if not name:
-            QMessageBox.information(self, "No Workspace", "No workspace is currently active.")
+            dark_information(self, "No Workspace", "No workspace is currently active.")
             return
-        new_name, ok = QInputDialog.getText(
+        new_name, ok = dark_get_text(
             self, "Duplicate Workspace", "New name:", text=f"{name} Copy"
         )
         if ok and new_name.strip():
@@ -1256,9 +1255,9 @@ class MainWindow(QMainWindow):
         """Delete the current workspace."""
         name = self.current_workspace_name
         if not name:
-            QMessageBox.information(self, "No Workspace", "No workspace is currently active.")
+            dark_information(self, "No Workspace", "No workspace is currently active.")
             return
-        reply = QMessageBox.question(
+        reply = dark_question(
             self, "Delete Workspace",
             f"Delete workspace '{name}'?\nThis cannot be undone.",
             QMessageBox.Yes | QMessageBox.No,
@@ -1273,7 +1272,7 @@ class MainWindow(QMainWindow):
         """Export the current workspace to a file."""
         name = self.current_workspace_name
         if not name:
-            QMessageBox.information(self, "No Workspace", "No workspace is currently active.")
+            dark_information(self, "No Workspace", "No workspace is currently active.")
             return
         dest, _ = QFileDialog.getSaveFileName(
             self, "Export Workspace", f"{name}.workspace.json",
@@ -1284,7 +1283,7 @@ class MainWindow(QMainWindow):
                 self.workspace_manager.export_workspace(name, dest)
                 self.status_label.setText(f"Workspace exported: {dest}")
             except Exception as e:
-                QMessageBox.critical(self, "Export Error", f"Failed to export:\n{e}")
+                dark_critical(self, "Export Error", f"Failed to export:\n{e}")
 
     def _import_workspace_dialog(self):
         """Import a workspace from a file."""
@@ -1297,7 +1296,7 @@ class MainWindow(QMainWindow):
             if imported_name:
                 self.status_label.setText(f"Workspace imported: {imported_name}")
             else:
-                QMessageBox.warning(self, "Import Failed", "Could not import workspace.")
+                dark_warning(self, "Import Failed", "Could not import workspace.")
 
     def _open_workspace_manager(self):
         """Open the Workspace Manager dialog."""
@@ -1336,7 +1335,7 @@ class MainWindow(QMainWindow):
             self.workspace_manager.export_workspace(name, dest)
             self.status_label.setText(f"Workspace exported: {dest}")
         except Exception as e:
-            QMessageBox.critical(self, "Export Error", f"Failed to export:\n{e}")
+            dark_critical(self, "Export Error", f"Failed to export:\n{e}")
 
     def _on_set_startup_workspace(self, name: str):
         self.settings.startup_workspace = name
@@ -1372,7 +1371,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         if self.tag_manager.dirty:
-            reply = QMessageBox.question(
+            reply = dark_question(
                 self, "Unsaved Changes",
                 "You have unsaved changes. Quit anyway?",
                 QMessageBox.Yes | QMessageBox.No
@@ -1401,14 +1400,5 @@ class MainWindow(QMainWindow):
         """Open the text editor window (create if not exists)."""
         if self.text_editor is None:
             self.text_editor = TextEditor(source_manager=self.source_manager, tag_db=self.tag_db, parent=self)
-        # Dark title bar (re-apply on every show in case it was reset)
-        try:
-            import ctypes
-            hwnd = int(self.text_editor.winId())
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                hwnd, 20, ctypes.byref(ctypes.c_int(1)), ctypes.sizeof(ctypes.c_int)
-            )
-        except Exception:
-            pass
         self.text_editor.show()
         self.text_editor.raise_()
