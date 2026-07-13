@@ -45,8 +45,8 @@ class StatsWorker(QRunnable):
                 with Image.open(img_path) as img:
                     w, h = img.size
                     resolution_counter[f"{w}x{h}"] += 1
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to read image {img_path}: {e}")
 
             # Tags
             txt_path = img_path.with_suffix(".txt")
@@ -58,8 +58,8 @@ class StatsWorker(QRunnable):
                             tags = [t.strip() for t in content.split(',') if t.strip()]
                             total_tags += len(tags)
                             tag_counter.update(tags)
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to read tags from {txt_path}: {e}")
 
         avg_tags = total_tags / total_images if total_images > 0 else 0
         most_common = tag_counter.most_common(10)
