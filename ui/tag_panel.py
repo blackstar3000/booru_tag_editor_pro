@@ -9,6 +9,7 @@ from core.danbooru_tag_db import DanbooruTagDB
 from core.booru_client_base import _normalize_tag
 from ui.tag_inspector import TagInspector
 from ui.tag_autocomplete import TagAutocompletePopup, TagEntry
+from ui.windows_theme import dark_question, dark_information, dark_warning, dark_critical
 import logging
 
 logger = logging.getLogger(__name__)
@@ -206,7 +207,7 @@ class TagPanel(QWidget):
             self.inspector.set_preview_image(tag, index, pixmap)
 
     def _on_credentials_missing(self):
-        reply = QMessageBox.question(
+        reply = dark_question(
             self, "Credentials Needed",
             "Danbooru API credentials are not set.\n"
             "Would you like to open settings now?",
@@ -284,7 +285,7 @@ class TagPanel(QWidget):
 
     def _delete_all(self):
         if self.all_tags:
-            reply = QMessageBox.question(
+            reply = dark_question(
                 self, "Delete All",
                 f"Delete all {len(self.all_tags)} tags?",
                 QMessageBox.Yes | QMessageBox.No
