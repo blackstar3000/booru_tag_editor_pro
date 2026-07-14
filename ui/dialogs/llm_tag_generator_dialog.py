@@ -20,6 +20,7 @@ from core.tag_validator import (
 )
 from core.settings_manager import SettingsManager
 from ui.windows_theme import set_dark_title_bar
+from ui.dialogs.llm_tag_generator_help import LLMTagGeneratorHelpDialog
 
 logger = logging.getLogger(__name__)
 
@@ -266,6 +267,11 @@ class LLMTagGeneratorDialog(QDialog):
         self.apply_btn.setVisible(False)
         status_layout.addWidget(self.apply_btn)
 
+        self.help_btn = QPushButton("? Help")
+        self.help_btn.setStyleSheet(SECONDARY_BTN)
+        self.help_btn.clicked.connect(self._on_help)
+        status_layout.addWidget(self.help_btn)
+
         layout.addLayout(status_layout)
 
         self._last_output = ""
@@ -351,6 +357,10 @@ class LLMTagGeneratorDialog(QDialog):
         if self._last_output:
             self.tags_generated.emit(self._last_output)
             self.status_label.setText("Applied to editor")
+
+    def _on_help(self):
+        dlg = LLMTagGeneratorHelpDialog(self)
+        dlg.exec_()
 
     def _load_settings(self):
         self.server_edit.setText(self._settings.llm_server_url)
