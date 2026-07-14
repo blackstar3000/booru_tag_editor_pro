@@ -10,6 +10,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 import logging
 
 from ui.windows_theme import set_dark_title_bar, dark_information
+from ui.dialogs.source_manager_help import SourceManagerHelpDialog
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +163,10 @@ class SourceManagerDialog(QDialog):
 
         btn_row.addStretch()
 
+        self.help_btn = QPushButton("? Help")
+        self.help_btn.clicked.connect(self._on_help)
+        btn_row.addWidget(self.help_btn)
+
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.accept)
         btn_row.addWidget(close_btn)
@@ -193,3 +198,7 @@ class SourceManagerDialog(QDialog):
     def showEvent(self, event):
         super().showEvent(event)
         set_dark_title_bar(self)
+
+    def _on_help(self):
+        dlg = SourceManagerHelpDialog(self)
+        dlg.exec_()
