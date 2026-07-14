@@ -16,6 +16,7 @@ from PyQt5.QtGui import QFont, QColor
 
 from core.tag_validator import get_validator, CATEGORY_NAMES, TEMPLATE_PRESETS, apply_template
 from ui.windows_theme import set_dark_title_bar
+from ui.dialogs.tag_validator_help import TagValidatorHelpDialog
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +264,16 @@ class TagValidatorDialog(QDialog):
         self.apply_btn.setVisible(False)
         status_layout.addWidget(self.apply_btn)
 
+        self.help_btn = QPushButton("? Help")
+        self.help_btn.setStyleSheet(
+            "QPushButton { padding: 5px 14px; font-size: 11px; "
+            "background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); "
+            "border-radius: 8px; color: #c4b5fd; }"
+            "QPushButton:hover { background: rgba(139, 92, 246, 0.35); }"
+        )
+        self.help_btn.clicked.connect(self._on_help)
+        status_layout.addWidget(self.help_btn)
+
         layout.addLayout(status_layout)
 
         self._last_output = ""
@@ -349,6 +360,10 @@ class TagValidatorDialog(QDialog):
         if self._last_output:
             self.tags_validated.emit(self._last_output, self._last_kept, self._last_dropped)
             self.status_label.setText("Applied to editor")
+
+    def _on_help(self):
+        dlg = TagValidatorHelpDialog(self)
+        dlg.exec_()
 
     def set_tags(self, tags_text: str):
         self.input_edit.setPlainText(tags_text)
