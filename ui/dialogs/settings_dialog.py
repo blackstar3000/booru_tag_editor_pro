@@ -5,6 +5,7 @@ import cloudscraper
 import logging
 
 from ui.windows_theme import set_dark_title_bar, dark_question, dark_information, dark_warning, dark_critical
+from ui.dialogs.settings_help import SettingsHelpDialog
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,13 @@ class SettingsDialog(QDialog):
         test_btn.clicked.connect(self.test_credentials)
         layout.addWidget(test_btn)
 
+        bottom_row = QHBoxLayout()
+        bottom_row.addStretch()
+        help_btn = QPushButton("? Help")
+        help_btn.clicked.connect(self._on_help)
+        bottom_row.addWidget(help_btn)
+        layout.addLayout(bottom_row)
+
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -104,3 +112,7 @@ class SettingsDialog(QDialog):
     def showEvent(self, event):
         super().showEvent(event)
         set_dark_title_bar(self)
+
+    def _on_help(self):
+        dlg = SettingsHelpDialog(self)
+        dlg.exec_()
